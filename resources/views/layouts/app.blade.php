@@ -7,6 +7,7 @@
     <title>@yield('title', 'HRM System - VRISTO')</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/x-icon" href="{{ asset('assets/images/logo/small_logo.jpg') }}">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -17,6 +18,47 @@
     <script defer src="{{ asset('assets/js/popper.min.js') }}"></script>
     <script defer src="{{ asset('assets/js/tippy-bundle.umd.min.js') }}"></script>
     <script defer src="{{ asset('assets/js/sweetalert.min.js') }}"></script>
+    {{-- Select2 CSS --}}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+    {{-- Select2 Dark Theme (optional) --}}
+    <style>
+        .select2-container--default .select2-selection--single {
+            background-color: #fff;
+            border: 1px solid #e0e6ed;
+            border-radius: 4px;
+            height: 38px;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 38px;
+            padding-left: 12px;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 36px;
+        }
+        .select2-container {
+            width: 100% !important;
+        }
+        /* Dark mode support */
+        .dark .select2-container--default .select2-selection--single {
+            background-color: #1b2e4b;
+            border-color: #253b5c;
+            color: #888ea8;
+        }
+        .dark .select2-dropdown {
+            background-color: #1b2e4b;
+            border-color: #253b5c;
+        }
+        .dark .select2-container--default .select2-results__option {
+            background-color: #1b2e4b;
+            color: #888ea8;
+        }
+        .dark .select2-container--default .select2-results__option--highlighted {
+            background-color: #253b5c;
+            color: #fff;
+        }
+    </style>
+
     @stack('styles')
 </head>
 
@@ -66,12 +108,39 @@
         </div>
     </div>
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="{{ asset('assets/js/alpine-collaspe.min.js') }}"></script>
     <script src="{{ asset('assets/js/alpine-persist.min.js') }}"></script>
     <script defer src="{{ asset('assets/js/alpine-ui.min.js') }}"></script>
     <script defer src="{{ asset('assets/js/alpine-focus.min.js') }}"></script>
     <script defer src="{{ asset('assets/js/alpine.min.js') }}"></script>
     <script src="{{ asset('assets/js/custom.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        document.addEventListener('alpine:init', () => {
+            // Scroll To Top
+            Alpine.data('scrollToTop', () => ({
+                showTopButton: false,
+                init() {
+                    window.addEventListener('scroll', () => {
+                        this.showTopButton = window.pageYOffset > 100;
+                    });
+                },
+                goToTop() {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            }));
+
+            // Sidebar (simple wrapper – most logic already uses $store.app)
+            Alpine.data('sidebar', () => ({
+                // you can add local properties if needed
+            }));
+
+            // Header (for header x-data, even if empty)
+            Alpine.data('header', () => ({}));
+        });
+    </script>
+
 
     @stack('scripts')
 </body>

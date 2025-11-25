@@ -12,18 +12,16 @@ class AdminSeeder extends Seeder
 {
     public function run(): void
     {
-        // Create admin user
-        $admin = User::create([
-            'staff_number' => 'ADMIN001',
-            'employee_name' => 'Admin User',
+        // Create admin user (ONLY user fields)
+        $adminUser = User::create([
+            'name' => 'Admin User',
             'email' => 'admin@hrm.com',
             'password' => Hash::make('password'),
-            'role' => 'admin',
         ]);
 
-        // Create admin employee record
+        // Create admin employee record (with user_id reference)
         Employee::create([
-            'user_id' => $admin->id,
+            'user_id' => $adminUser->id,
             'staff_number' => 'ADMIN001',
             'employee_name' => 'Admin User',
             'designation' => 'System Administrator',

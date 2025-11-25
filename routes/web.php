@@ -9,6 +9,7 @@ use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\DocumentExpiryController;
 use App\Http\Controllers\EmployeeImportController;
 
 /*
@@ -48,10 +49,20 @@ Route::middleware(['auth'])->group(function () {
     // Employees Resource Routes (Must come AFTER specific routes)
     Route::resource('employees', EmployeeController::class);
 
+    // Document Expiry Alerts
+    Route::get('/document-expiry-alerts', [DocumentExpiryController::class, 'index'])->name('document-expiry.index');
+
     // Attendance
     Route::resource('attendances', AttendanceController::class);
-    Route::post('/attendances/bulk-store', [AttendanceController::class, 'bulkStore'])->name('attendances.bulk-store');
-    Route::get('/attendances-export', [AttendanceController::class, 'export'])->name('attendances.export');
+    Route::post('attendances/generate-today', [AttendanceController::class, 'generateToday'])
+        ->name('attendances.generate-today');
+    Route::patch('attendances/{attendance}/quick-update', [AttendanceController::class, 'quickUpdate'])
+        ->name('attendances.quick-update');
+    Route::get('attendances-report/export', [AttendanceController::class, 'export'])
+        ->name('attendances.report.export');
+
+    Route::get('/reports/analytics', [ReportController::class, 'analytics'])->name('reports.analytics');
+    Route::get('/reports-export', [ReportController::class, 'export'])->name('reports.export');
 
     // Overtime
     Route::get('/overtime', [OvertimeController::class, 'index'])->name('overtime.index');

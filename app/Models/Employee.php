@@ -3,14 +3,12 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Carbon\Carbon;
 
 class Employee extends Model
 {
-    use HasFactory, SoftDeletes;
+    use SoftDeletes;
 
     protected $fillable = [
         'user_id',
@@ -35,12 +33,23 @@ class Employee extends Model
         'recent_increment_amount',
         'increment_date',
         'passport_expiry_date',
-        'visit_expiry_date',
         'visa_expiry_date',
+        'visit_expiry_date',
         'eid_expiry_date',
         'health_insurance_expiry_date',
         'driving_license_expiry_date',
         'salary_card_details',
+        'iloe_insurance_expiry_date',
+        'vtnx_trade_license_renewal_date',
+        'po_box_renewal_date',
+        'soe_card_renewal_date',
+        'dcd_card_renewal_date',
+        'voltronix_est_card_renewal_date',
+        'warehouse_ejari_renewal_date',
+        'camp_ejari_renewal_date',
+        'workman_insurance_expiry_date',
+        'etisalat_contract_expiry_date',
+        'dewa_details',
         'remarks',
         'status',
     ];
@@ -52,18 +61,26 @@ class Employee extends Model
         'last_vacation_date' => 'date',
         'increment_date' => 'date',
         'passport_expiry_date' => 'date',
-        'visit_expiry_date' => 'date',
         'visa_expiry_date' => 'date',
+        'visit_expiry_date' => 'date',
         'eid_expiry_date' => 'date',
         'health_insurance_expiry_date' => 'date',
         'driving_license_expiry_date' => 'date',
-        'basic_salary' => 'decimal:2',
-        'allowance' => 'decimal:2',
-        'fixed_salary' => 'decimal:2',
-        'total_salary' => 'decimal:2',
-        'recent_increment_amount' => 'decimal:2',
+        'iloe_insurance_expiry_date' => 'date',
+        'vtnx_trade_license_renewal_date' => 'date',
+        'po_box_renewal_date' => 'date',
+        'soe_card_renewal_date' => 'date',
+        'dcd_card_renewal_date' => 'date',
+        'voltronix_est_card_renewal_date' => 'date',
+        'warehouse_ejari_renewal_date' => 'date',
+        'camp_ejari_renewal_date' => 'date',
+        'workman_insurance_expiry_date' => 'date',
+        'etisalat_contract_expiry_date' => 'date',
     ];
 
+    /**
+     * Relationships
+     */
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -79,55 +96,28 @@ class Employee extends Model
         return $this->hasMany(OvertimeRecord::class);
     }
 
-    public function documentExpiryAlerts()
+    /**
+     * Get all document expiry dates for alerts
+     */
+    public function getAllDocumentFields()
     {
-        return $this->hasMany(DocumentExpiryAlert::class);
-    }
-
-    public function getExpiringDocuments()
-    {
-        $documents = [];
-        $today = Carbon::today();
-        $threeMonthsLater = $today->copy()->addMonths(3);
-
-        $documentFields = [
+        return [
             'passport_expiry_date' => 'Passport',
             'visa_expiry_date' => 'Visa',
+            'visit_expiry_date' => 'Visit Permit',
+            'eid_expiry_date' => 'EID',
             'health_insurance_expiry_date' => 'Health Insurance',
             'driving_license_expiry_date' => 'Driving License',
-            'eid_expiry_date' => 'EID',
-            'visit_expiry_date' => 'Visit Permit',
+            'iloe_insurance_expiry_date' => 'ILOE Insurance',
+            'vtnx_trade_license_renewal_date' => 'VTNX Trade License',
+            'po_box_renewal_date' => 'PO Box',
+            'soe_card_renewal_date' => 'SOE Card',
+            'dcd_card_renewal_date' => 'DCD Card',
+            'voltronix_est_card_renewal_date' => 'Voltronix EST Card',
+            'warehouse_ejari_renewal_date' => 'Warehouse EJARI',
+            'camp_ejari_renewal_date' => 'Camp EJARI',
+            'workman_insurance_expiry_date' => 'Workman Insurance',
+            'etisalat_contract_expiry_date' => 'Etisalat Contract',
         ];
-
-        foreach ($documentFields as $field => $name) {
-            if ($this->$field) {
-                $expiryDate = Carbon::parse($this->$field);
-                $daysUntilExpiry = $today->diffInDays($expiryDate, false);
-
-                if ($daysUntilExpiry <= 90) {
-                    $documents[] = [
-                        'name' => $name,
-                        'expiry_date' => $expiryDate,
-                        'days_until_expiry' => $daysUntilExpiry,
-                        'status' => $this->getExpiryStatus($daysUntilExpiry),
-                    ];
-                }
-            }
-        }
-
-        return collect($documents);
-    }
-
-    private function getExpiryStatus($days)
-    {
-        if ($days < 0) {
-            return 'expired';
-        } elseif ($days <= 30) {
-            return 'critical';
-        } elseif ($days <= 60) {
-            return 'warning';
-        } else {
-            return 'notice';
-        }
     }
 }
