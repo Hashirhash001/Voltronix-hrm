@@ -49,17 +49,27 @@
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
                     <div>
                         <label for="designation">Designation <span class="text-danger">*</span></label>
-                        <input id="designation" type="text" name="designation" class="form-input" placeholder="e.g., Electrician" value="{{ old('designation') }}" required/>
+                        <input id="designation" type="text" name="designation" class="form-input" placeholder="e.g., Electrician" value="{{ old('designation') }}" required>
                     </div>
-
                     <div>
                         <label for="qualification">Qualification</label>
-                        <input id="qualification" type="text" name="qualification" class="form-input" placeholder="e.g., Diploma" value="{{ old('qualification') }}"/>
+                        <input id="qualification" type="text" name="qualification" class="form-input" placeholder="e.g., Bachelor of Engineering" value="{{ old('qualification') }}">
                     </div>
+                    <div>
+                        <label for="year_of_completion">Year of Completion</label>
+                        <input id="year_of_completion" type="number" name="year_of_completion" class="form-input" placeholder="e.g., 2020" min="1950" max="{{ date('Y') }}" value="{{ old('year_of_completion') }}">
+                    </div>
+                </div>
 
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
+                    <div>
+                        <label for="qualification_document">Qualification Document (PDF only)</label>
+                        <input id="qualification_document" type="file" name="qualification_document" class="form-input" accept=".pdf">
+                        <p class="text-xs text-gray-500 mt-1">Upload degree/certificate (Max: 2MB)</p>
+                    </div>
                     <div>
                         <label for="pp_status">PP Status</label>
-                        <input id="pp_status" type="text" name="pp_status" class="form-input" placeholder="PP status" value="{{ old('pp_status') }}"/>
+                        <input id="pp_status" type="text" name="pp_status" class="form-input" placeholder="PP status" value="{{ old('pp_status') }}">
                     </div>
                 </div>
 
@@ -94,6 +104,7 @@
                             <option value="inactive" {{ old('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
                             <option value="vacation" {{ old('status') === 'vacation' ? 'selected' : '' }}>Vacation</option>
                             <option value="terminated" {{ old('status') === 'terminated' ? 'selected' : '' }}>Terminated</option>
+                            <option value="resigned" {{ old('status') == 'resigned' ? 'selected' : '' }}>Resigned</option>
                         </select>
                     </div>
                 </div>
@@ -102,33 +113,19 @@
 
                 <!-- Duty Information -->
                 <h6 class="mb-4 text-base font-bold">Duty Information</h6>
-
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
                     <div>
                         <label for="duty_joined_date">Duty Joined Date</label>
-                        <input id="duty_joined_date" type="date" name="duty_joined_date" class="form-input" value="{{ old('duty_joined_date') }}"/>
+                        <input id="duty_joined_date" type="date" name="duty_joined_date" class="form-input" value="{{ old('duty_joined_date') }}">
                     </div>
-
                     <div>
                         <label for="duty_end_date">Duty End Date</label>
-                        <input id="duty_end_date" type="date" name="duty_end_date" class="form-input" value="{{ old('duty_end_date') }}"/>
+                        <input id="duty_end_date" type="date" name="duty_end_date" class="form-input" value="{{ old('duty_end_date') }}">
+                        <p class="text-xs text-gray-500 mt-1">Leave blank if ongoing. Fill for Resigned/Terminated status</p>
                     </div>
-
                     <div>
                         <label for="last_vacation_date">Last Vacation Date</label>
-                        <input id="last_vacation_date" type="date" name="last_vacation_date" class="form-input" value="{{ old('last_vacation_date') }}"/>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
-                    <div>
-                        <label for="duty_days">Duty Days</label>
-                        <input id="duty_days" type="number" name="duty_days" class="form-input" placeholder="Number of days" value="{{ old('duty_days') }}"/>
-                    </div>
-
-                    <div>
-                        <label for="duty_years">Duty Years</label>
-                        <input id="duty_years" type="number" step="0.01" name="duty_years" class="form-input" placeholder="Years" value="{{ old('duty_years') }}"/>
+                        <input id="last_vacation_date" type="date" name="last_vacation_date" class="form-input" value="{{ old('last_vacation_date') }}">
                     </div>
                 </div>
 

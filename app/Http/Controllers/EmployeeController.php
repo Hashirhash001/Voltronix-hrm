@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/EmployeeController.php
 
 namespace App\Http\Controllers;
 
@@ -9,57 +8,56 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class EmployeeController extends Controller
 {
-    /**
-     * Display a listing of the resource
-     */
     public function index(Request $request)
     {
-        $query = Employee::query()->with('user');
+        $query = Employee::with('user');
 
-        if ($request->has('status') && $request->status !== '') {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->has('designation') && $request->designation !== '') {
-            $query->where('designation', $request->designation);
-        }
-
-        if ($request->has('min_salary') && $request->min_salary !== '') {
-            $query->where('total_salary', '>=', $request->min_salary);
-        }
-
-        if ($request->has('search')) {
+        // Apply filters
+        if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('employee_name', 'like', "%{$search}%")
-                    ->orWhere('staff_number', 'like', "%{$search}%")
-                    ->orWhere('designation', 'like', "%{$search}%");
+                  ->orWhere('staff_number', 'like', "%{$search}%")
+                  ->orWhere('designation', 'like', "%{$search}%")
+                  ->orWhereHas('user', function($q) use ($search) {
+                      $q->where('email', 'like', "%{$search}%");
+                  });
             });
         }
 
-        if ($request->ajax()) {
-            $employees = $query->get();
-            return response()->json(['employees' => $employees]);
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
         }
 
-        $employees = $query->paginate(50);
+        if ($request->filled('designation')) {
+            $query->where('designation', $request->designation);
+        }
+
+        if ($request->filled('min_salary')) {
+            $query->where('total_salary', '>=', $request->min_salary);
+        }
+
+        $employees = $query->orderBy('created_at', 'desc')->get();
+
+        // Return JSON for AJAX requests
+        if ($request->ajax() || $request->has('ajax')) {
+            return response()->json([
+                'employees' => $employees
+            ]);
+        }
+
         return view('employees.index', compact('employees'));
     }
 
-    /**
-     * Show the form for creating a new resource
-     */
     public function create()
     {
         return view('employees.create');
     }
 
-    /**
-     * Store a newly created resource in storage
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -68,6 +66,8 @@ class EmployeeController extends Controller
             'email' => 'required|email|unique:users,email',
             'designation' => 'required|string',
             'qualification' => 'nullable|string',
+            'year_of_completion' => 'nullable|integer|min:1950|max:' . date('Y'),
+            'qualification_document' => 'nullable|file|mimes:pdf|max:2048',
             'pp_status' => 'nullable|string',
             'uae_contact' => 'nullable|string',
             'home_country_contact' => 'nullable|string',
@@ -75,10 +75,8 @@ class EmployeeController extends Controller
             'current_age' => 'nullable|integer|min:0|max:120',
             'duty_joined_date' => 'nullable|date',
             'duty_end_date' => 'nullable|date',
-            'duty_days' => 'nullable|integer|min:0',
-            'duty_years' => 'nullable|numeric|min:0|max:999.99',
             'last_vacation_date' => 'nullable|date',
-            'basic_salary' => 'required|numeric|min:0|max:9999999.99',
+            'basic_salary' => 'nullable|numeric|min:0|max:9999999.99',
             'allowance' => 'nullable|numeric|min:0|max:9999999.99',
             'fixed_salary' => 'nullable|numeric|min:0|max:9999999.99',
             'total_salary' => 'nullable|numeric|min:0|max:9999999.99',
@@ -103,39 +101,41 @@ class EmployeeController extends Controller
             'etisalat_contract_expiry_date' => 'nullable|date',
             'dewa_details' => 'nullable|string',
             'remarks' => 'nullable|string',
-            'status' => 'required|in:active,inactive,vacation,terminated',
+            'status' => 'required|in:active,inactive,vacation,terminated,resigned',
         ]);
 
         try {
             DB::beginTransaction();
 
-            // Step 1: Create User with ONLY user fields
+            // Step 1: Create User
             $user = User::create([
                 'name' => $validated['employee_name'],
                 'email' => $validated['email'],
                 'password' => Hash::make('password123'),
             ]);
 
-            // Step 2: Prepare salary values
+            // Step 2: Handle file upload
+            $qualificationDocumentPath = null;
+            if ($request->hasFile('qualification_document')) {
+                $qualificationDocumentPath = $request->file('qualification_document')
+                    ->store('qualification_documents', 'public');
+            }
+
+            // Step 3: Prepare salary values
             $basicSalary = (float) ($validated['basic_salary'] ?? 0);
             $allowance = (float) ($validated['allowance'] ?? 0);
             $fixedSalary = (float) ($validated['fixed_salary'] ?? 0);
             $totalSalary = $validated['total_salary'] ?? ($basicSalary + $allowance + $fixedSalary);
 
-            // Step 3: Prepare duty_years - ensure it's within range
-            $dutyYears = $validated['duty_years'] ?? null;
-            if ($dutyYears !== null) {
-                $dutyYears = min((float) $dutyYears, 999.99);
-                $dutyYears = max($dutyYears, 0);
-            }
-
-            // Step 4: Build employee data array
+            // Step 4: Build employee data array with correct field names
             $employeeData = [
                 'user_id' => $user->id,
                 'staff_number' => $validated['staff_number'],
                 'employee_name' => $validated['employee_name'],
                 'designation' => $validated['designation'],
                 'qualification' => $validated['qualification'] ?? null,
+                'year_of_completion' => $validated['year_of_completion'] ?? null,
+                'qualification_document' => $qualificationDocumentPath,
                 'pp_status' => $validated['pp_status'] ?? null,
                 'uae_contact' => $validated['uae_contact'] ?? null,
                 'home_country_contact' => $validated['home_country_contact'] ?? null,
@@ -143,8 +143,6 @@ class EmployeeController extends Controller
                 'current_age' => $validated['current_age'] ?? null,
                 'duty_joined_date' => $validated['duty_joined_date'] ?? null,
                 'duty_end_date' => $validated['duty_end_date'] ?? null,
-                'duty_days' => $validated['duty_days'] ?? null,
-                'duty_years' => $dutyYears,
                 'last_vacation_date' => $validated['last_vacation_date'] ?? null,
                 'basic_salary' => $basicSalary,
                 'allowance' => $allowance,
@@ -196,26 +194,18 @@ class EmployeeController extends Controller
             ], 422);
         }
     }
-    /**
-     * Display the specified resource
-     */
+
     public function show(Employee $employee)
     {
         $employee->load('user');
         return view('employees.show', compact('employee'));
     }
 
-    /**
-     * Show the form for editing the specified resource
-     */
     public function edit(Employee $employee)
     {
         return view('employees.edit', compact('employee'));
     }
 
-    /**
-     * Update the specified resource in storage
-     */
     public function update(Request $request, Employee $employee)
     {
         $validated = $request->validate([
@@ -223,6 +213,8 @@ class EmployeeController extends Controller
             'employee_name' => 'required|string',
             'designation' => 'required|string',
             'qualification' => 'nullable|string',
+            'year_of_completion' => 'nullable|integer|min:1950|max:' . date('Y'),
+            'qualification_document' => 'nullable|file|mimes:pdf|max:2048',
             'pp_status' => 'nullable|string',
             'uae_contact' => 'nullable|string',
             'home_country_contact' => 'nullable|string',
@@ -230,10 +222,8 @@ class EmployeeController extends Controller
             'current_age' => 'nullable|integer',
             'duty_joined_date' => 'nullable|date',
             'duty_end_date' => 'nullable|date',
-            'duty_days' => 'nullable|integer',
-            'duty_years' => 'nullable|numeric',
             'last_vacation_date' => 'nullable|date',
-            'basic_salary' => 'required|numeric|min:0',
+            'basic_salary' => 'nullable|numeric|min:0',
             'allowance' => 'nullable|numeric|min:0',
             'fixed_salary' => 'nullable|numeric|min:0',
             'total_salary' => 'nullable|numeric|min:0',
@@ -258,11 +248,21 @@ class EmployeeController extends Controller
             'etisalat_contract_expiry_date' => 'nullable|date',
             'dewa_details' => 'nullable|string',
             'remarks' => 'nullable|string',
-            'status' => 'required|in:active,inactive,vacation,terminated',
+            'status' => 'required|in:active,inactive,vacation,terminated,resigned',
         ]);
 
         try {
             DB::beginTransaction();
+
+            // Handle file upload
+            if ($request->hasFile('qualification_document')) {
+                // Delete old document if exists
+                if ($employee->qualification_document) {
+                    Storage::disk('public')->delete($employee->qualification_document);
+                }
+                $validated['qualification_document'] = $request->file('qualification_document')
+                    ->store('qualification_documents', 'public');
+            }
 
             $employee->update($validated);
 
@@ -285,13 +285,15 @@ class EmployeeController extends Controller
         }
     }
 
-    /**
-     * Remove the specified resource from storage
-     */
     public function destroy(Employee $employee)
     {
         try {
             DB::beginTransaction();
+
+            // Delete qualification document if exists
+            if ($employee->qualification_document) {
+                Storage::disk('public')->delete($employee->qualification_document);
+            }
 
             if ($employee->user) {
                 $employee->user->delete();

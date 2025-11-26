@@ -50,17 +50,37 @@
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
                     <div>
                         <label for="designation">Designation <span class="text-danger">*</span></label>
-                        <input id="designation" type="text" name="designation" class="form-input" placeholder="e.g., Electrician" value="{{ old('designation', $employee->designation) }}" required/>
+                        <input id="designation" type="text" name="designation" class="form-input" placeholder="e.g., Electrician" value="{{ old('designation', $employee->designation) }}" required>
                     </div>
-
                     <div>
                         <label for="qualification">Qualification</label>
-                        <input id="qualification" type="text" name="qualification" class="form-input" placeholder="e.g., Diploma" value="{{ old('qualification', $employee->qualification) }}"/>
+                        <input id="qualification" type="text" name="qualification" class="form-input" placeholder="e.g., Bachelor of Engineering" value="{{ old('qualification', $employee->qualification) }}">
                     </div>
+                    <div>
+                        <label for="year_of_completion">Year of Completion</label>
+                        <input id="year_of_completion" type="number" name="year_of_completion" class="form-input" placeholder="e.g., 2020" min="1950" max="{{ date('Y') }}" value="{{ old('year_of_completion', $employee->year_of_completion) }}">
+                    </div>
+                </div>
 
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
+                    <div>
+                        <label for="qualification_document">Qualification Document (PDF only)</label>
+                        @if($employee->qualification_document)
+                            <div class="mb-2 flex items-center gap-2">
+                                <a href="{{ Storage::url($employee->qualification_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                    </svg>
+                                    View Current Document
+                                </a>
+                            </div>
+                        @endif
+                        <input id="qualification_document" type="file" name="qualification_document" class="form-input" accept=".pdf">
+                        <p class="text-xs text-gray-500 mt-1">Upload new to replace existing (Max: 2MB)</p>
+                    </div>
                     <div>
                         <label for="pp_status">PP Status</label>
-                        <input id="pp_status" type="text" name="pp_status" class="form-input" placeholder="PP status" value="{{ old('pp_status', $employee->pp_status) }}"/>
+                        <input id="pp_status" type="text" name="pp_status" class="form-input" placeholder="PP status" value="{{ old('pp_status', $employee->pp_status) }}">
                     </div>
                 </div>
 
@@ -95,6 +115,7 @@
                             <option value="inactive" {{ old('status', $employee->status) === 'inactive' ? 'selected' : '' }}>Inactive</option>
                             <option value="vacation" {{ old('status', $employee->status) === 'vacation' ? 'selected' : '' }}>Vacation</option>
                             <option value="terminated" {{ old('status', $employee->status) === 'terminated' ? 'selected' : '' }}>Terminated</option>
+                            <option value="resigned" {{ old('status', $employee->status) == 'resigned' ? 'selected' : '' }}>Resigned</option>
                         </select>
                     </div>
                 </div>
@@ -103,35 +124,22 @@
 
                 <!-- Duty Information -->
                 <h6 class="mb-4 text-base font-bold">Duty Information</h6>
-
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
                     <div>
                         <label for="duty_joined_date">Duty Joined Date</label>
-                        <input id="duty_joined_date" type="date" name="duty_joined_date" class="form-input" value="{{ old('duty_joined_date', $employee->duty_joined_date?->format('Y-m-d')) }}"/>
+                        <input id="duty_joined_date" type="date" name="duty_joined_date" class="form-input" value="{{ old('duty_joined_date', $employee->duty_joined_date?->format('Y-m-d')) }}">
                     </div>
-
                     <div>
                         <label for="duty_end_date">Duty End Date</label>
-                        <input id="duty_end_date" type="date" name="duty_end_date" class="form-input" value="{{ old('duty_end_date', $employee->duty_end_date?->format('Y-m-d')) }}"/>
+                        <input id="duty_end_date" type="date" name="duty_end_date" class="form-input" value="{{ old('duty_end_date', $employee->duty_end_date?->format('Y-m-d')) }}">
+                        <p class="text-xs text-gray-500 mt-1">Leave blank if ongoing. Fill for Resigned/Terminated status</p>
                     </div>
-
                     <div>
                         <label for="last_vacation_date">Last Vacation Date</label>
-                        <input id="last_vacation_date" type="date" name="last_vacation_date" class="form-input" value="{{ old('last_vacation_date', $employee->last_vacation_date?->format('Y-m-d')) }}"/>
+                        <input id="last_vacation_date" type="date" name="last_vacation_date" class="form-input" value="{{ old('last_vacation_date', $employee->last_vacation_date?->format('Y-m-d')) }}">
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
-                    <div>
-                        <label for="duty_days">Duty Days</label>
-                        <input id="duty_days" type="number" name="duty_days" class="form-input" placeholder="Number of days" value="{{ old('duty_days', $employee->duty_days) }}"/>
-                    </div>
-
-                    <div>
-                        <label for="duty_years">Duty Years</label>
-                        <input id="duty_years" type="number" step="0.01" name="duty_years" class="form-input" placeholder="Years" value="{{ old('duty_years', $employee->duty_years) }}"/>
-                    </div>
-                </div>
 
                 <hr class="my-6 border-white-light dark:border-[#1b2e4b]">
 

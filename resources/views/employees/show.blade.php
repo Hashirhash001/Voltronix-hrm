@@ -50,6 +50,21 @@
                         <span class="font-semibold">{{ $employee->qualification ?? 'N/A' }}</span>
                     </div>
                     <div class="flex justify-between">
+                        <span class="text-white-dark">Year of Completion:</span>
+                        <span class="font-semibold">{{ $employee->year_of_completion ?? 'N/A' }}</span>
+                    </div>
+                    @if($employee->qualification_document)
+                    <div class="flex justify-between">
+                        <span class="text-white-dark">Qualification Document:</span>
+                        <a href="{{ asset('storage/' . $employee->qualification_document) }}" target="_blank" class="text-primary hover:underline flex items-center font-semibold">
+                            <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                            </svg>
+                            View Document
+                        </a>
+                    </div>
+                    @endif
+                    <div class="flex justify-between">
                         <span class="text-white-dark">PP Status:</span>
                         <span class="font-semibold">{{ $employee->pp_status ?? 'N/A' }}</span>
                     </div>
@@ -95,23 +110,23 @@
                 <div class="space-y-4">
                     <div class="flex justify-between">
                         <span class="text-white-dark">Basic Salary:</span>
-                        <span class="font-semibold">AED {{ number_format($employee->basic_salary, 2) }}</span>
+                        <span class="font-semibold">AED {{ number_format($employee->basic_salary ?? 0, 2) }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-white-dark">Allowance:</span>
-                        <span class="font-semibold">AED {{ number_format($employee->allowance, 2) }}</span>
+                        <span class="font-semibold">AED {{ number_format($employee->allowance ?? 0, 2) }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-white-dark">Fixed Salary:</span>
-                        <span class="font-semibold">AED {{ number_format($employee->fixed_salary, 2) }}</span>
+                        <span class="font-semibold">AED {{ number_format($employee->fixed_salary ?? 0, 2) }}</span>
                     </div>
                     <div class="flex justify-between border-t border-white-light pt-3 dark:border-[#1b2e4b]">
                         <span class="text-white-dark font-semibold">Total Salary:</span>
-                        <span class="font-bold text-primary text-lg">AED {{ number_format($employee->total_salary, 2) }}</span>
+                        <span class="font-bold text-primary text-lg">AED {{ number_format($employee->total_salary ?? 0, 2) }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-white-dark">Recent Increment:</span>
-                        <span class="font-semibold">AED {{ number_format($employee->recent_increment_amount, 2) }}</span>
+                        <span class="font-semibold">AED {{ number_format($employee->recent_increment_amount ?? 0, 2) }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-white-dark">Increment Date:</span>
@@ -136,15 +151,17 @@
                     </div>
                     <div class="flex justify-between">
                         <span class="text-white-dark">Duty End Date:</span>
-                        <span class="font-semibold">{{ $employee->duty_end_date?->format('d M Y') ?? 'Ongoing' }}</span>
+                        <span class="font-semibold {{ in_array($employee->status, ['resigned', 'terminated']) && $employee->duty_end_date ? 'text-danger' : '' }}">
+                            {{ $employee->duty_end_date?->format('d M Y') ?? 'Ongoing' }}
+                        </span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-white-dark">Duty Days:</span>
-                        <span class="font-semibold">{{ $employee->duty_days ?? 'N/A' }} days</span>
+                        <span class="font-semibold">{{ $employee->duty_days }} days</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-white-dark">Duty Years:</span>
-                        <span class="font-semibold">{{ number_format($employee->duty_years, 2) ?? 'N/A' }} years</span>
+                        <span class="font-semibold">{{ number_format($employee->duty_years, 2) }} years</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-white-dark">Last Vacation:</span>

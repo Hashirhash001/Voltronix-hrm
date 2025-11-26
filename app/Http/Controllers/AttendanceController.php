@@ -419,5 +419,4 @@ class AttendanceController extends Controller
         return $pdf->download($filename);
     }
 
-
 }

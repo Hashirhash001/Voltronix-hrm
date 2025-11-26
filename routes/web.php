@@ -61,19 +61,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('attendances-report/export', [AttendanceController::class, 'export'])
         ->name('attendances.report.export');
 
-    Route::get('/reports/analytics', [ReportController::class, 'analytics'])->name('reports.analytics');
-    Route::get('/reports-export', [ReportController::class, 'export'])->name('reports.export');
-
-    // Overtime
-    Route::get('/overtime', [OvertimeController::class, 'index'])->name('overtime.index');
-    Route::get('/overtime/{overtimeRecord}', [OvertimeController::class, 'show'])->name('overtime.show');
-    Route::patch('/overtime/{overtimeRecord}/approve', [OvertimeController::class, 'approve'])->name('overtime.approve');
-    Route::patch('/overtime/{overtimeRecord}/reject', [OvertimeController::class, 'reject'])->name('overtime.reject');
-    Route::get('/overtime-export', [OvertimeController::class, 'export'])->name('overtime.export');
-
     // Reports
     Route::get('/reports/analytics', [ReportController::class, 'analytics'])->name('reports.analytics');
     Route::get('/reports-export', [ReportController::class, 'export'])->name('reports.export');
+    Route::get('/reports/employee/{employee}', [ReportController::class, 'employeeDetail'])->name('reports.employee-detail');
+    Route::get('/reports/employee-export', [ReportController::class, 'employeeExport'])->name('reports.employee-export');
 
     // Profile Routes
     Route::prefix('profile')->name('profile.')->group(function () {

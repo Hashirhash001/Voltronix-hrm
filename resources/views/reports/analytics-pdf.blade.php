@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
     <title>Attendance Analytics Report</title>
@@ -9,321 +10,442 @@
             padding: 0;
             box-sizing: border-box;
         }
+
         body {
             font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 10px;
-            margin: 15px;
+            font-size: 8px;
+            margin: 8px;
             color: #333;
+            line-height: 1.15;
         }
+
         .header {
             text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 3px solid #333;
-            padding-bottom: 15px;
+            margin-bottom: 8px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
         }
-        .header h2 {
-            margin: 0 0 10px 0;
-            font-size: 20px;
-            color: #333;
+
+        .header-logo {
+            margin: 0 auto 2px auto;
         }
-        .header p {
-            margin: 5px 0;
-            font-size: 11px;
+
+        .header-logo img {
+            width: 100px;
+            height: 100px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .header-content h2 {
+            margin: 0 0 2px 0;
+            font-size: 14px;
+        }
+
+        .header-content p {
+            margin: 1px 0;
+            font-size: 7px;
             color: #666;
         }
+
+        .team-efficiency {
+            text-align: center;
+            background: #f8f9fa;
+            padding: 6px;
+            margin-bottom: 8px;
+            border: 2px solid #dee2e6;
+            border-radius: 3px;
+        }
+
+        .team-efficiency .score {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .team-efficiency .label {
+            font-size: 9px;
+            font-weight: bold;
+        }
+
+        .team-efficiency .note {
+            font-size: 6px;
+            color: #666;
+            margin-top: 1px;
+        }
+
         .summary {
             background: #f8f9fa;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 5px;
+            padding: 5px;
+            margin-bottom: 8px;
             border: 1px solid #dee2e6;
         }
+
         .summary h3 {
-            margin: 0 0 10px 0;
-            font-size: 13px;
-            color: #333;
+            margin: 0 0 4px 0;
+            font-size: 9px;
         }
+
         .summary-grid {
             display: table;
             width: 100%;
             border-collapse: collapse;
         }
+
         .summary-row {
             display: table-row;
         }
+
         .summary-item {
             display: table-cell;
-            padding: 10px;
+            padding: 3px 1px;
             background: white;
             text-align: center;
             border: 1px solid #dee2e6;
-            vertical-align: middle;
+            font-size: 6px;
         }
+
         .summary-item strong {
             display: block;
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 3px;
+            font-size: 10px;
+            margin-bottom: 1px;
         }
+
         .summary-item p {
-            font-size: 8px;
+            font-size: 5px;
             color: #666;
-            text-transform: uppercase;
         }
-        .color-success { color: #28a745; }
-        .color-danger { color: #dc3545; }
-        .color-warning { color: #ffc107; }
-        .color-info { color: #17a2b8; }
-        .color-secondary { color: #6c757d; }
 
         .employee-section {
-            margin-bottom: 20px;
-            page-break-inside: avoid;
+            margin-bottom: 6px;
             border: 1px solid #dee2e6;
-            border-radius: 5px;
-            overflow: hidden;
+            break-inside: avoid;
         }
+
         .employee-header {
             background: #343a40;
             color: white;
-            padding: 10px 15px;
-            font-size: 12px;
+            padding: 3px 5px;
+            font-size: 7px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
+
         .employee-header strong {
-            font-size: 13px;
+            font-size: 8px;
         }
+
+        .employee-header .efficiency {
+            font-size: 8px;
+            font-weight: bold;
+        }
+
         .employee-body {
-            padding: 15px;
+            padding: 3px;
         }
+
         .stats-grid {
             display: table;
             width: 100%;
-            margin-bottom: 15px;
+            margin-bottom: 3px;
             border-collapse: collapse;
         }
+
         .stats-row {
             display: table-row;
         }
+
         .stat-box {
             display: table-cell;
-            padding: 8px 5px;
+            padding: 2px 1px;
             text-align: center;
             background: #f8f9fa;
             border: 1px solid #dee2e6;
-            border-left: 3px solid #4CAF50;
+            font-size: 6px;
         }
+
         .stat-box strong {
             display: block;
-            font-size: 14px;
-            font-weight: bold;
-            margin-bottom: 2px;
+            font-size: 8px;
+            margin-bottom: 0px;
+            line-height: 1;
         }
+
         .stat-box p {
-            font-size: 7px;
+            font-size: 5px;
             color: #666;
-            text-transform: uppercase;
+            line-height: 1;
         }
-        .stat-box.stat-primary { border-left-color: #007bff; }
-        .stat-box.stat-success { border-left-color: #28a745; }
-        .stat-box.stat-danger { border-left-color: #dc3545; }
-        .stat-box.stat-warning { border-left-color: #ffc107; }
-        .stat-box.stat-info { border-left-color: #17a2b8; }
 
         .dates-section {
-            margin-top: 15px;
+            margin-top: 3px;
         }
+
         .date-group {
-            margin-bottom: 10px;
-            padding: 8px;
+            margin-bottom: 2px;
+            padding: 2px;
             background: #f8f9fa;
-            border-radius: 3px;
+            border-radius: 2px;
         }
+
         .date-group h5 {
-            margin: 0 0 5px 0;
-            font-size: 9px;
+            margin: 0;
+            font-size: 5px;
             font-weight: bold;
+            line-height: 1.1;
         }
+
         .badge {
             display: inline-block;
-            padding: 3px 7px;
-            margin: 2px;
-            border-radius: 3px;
-            font-size: 8px;
-            font-weight: bold;
+            padding: 0px 2px;
+            margin: 0.5px;
+            border-radius: 2px;
+            font-size: 5px;
+            line-height: 1;
         }
+
         .badge-success {
             background: #d4edda;
             color: #155724;
-            border: 1px solid #c3e6cb;
         }
+
         .badge-danger {
             background: #f8d7da;
             color: #721c24;
-            border: 1px solid #f5c6cb;
         }
+
         .badge-warning {
             background: #fff3cd;
             color: #856404;
-            border: 1px solid #ffeaa7;
         }
+
         .badge-info {
             background: #d1ecf1;
             color: #0c5460;
-            border: 1px solid #bee5eb;
         }
+
         .footer {
-            margin-top: 30px;
+            margin-top: 10px;
             text-align: center;
-            font-size: 8px;
+            font-size: 5px;
             color: #666;
             border-top: 1px solid #dee2e6;
-            padding-top: 10px;
+            padding-top: 4px;
         }
+
         .page-break {
             page-break-after: always;
         }
+
+        .color-success {
+            color: #28a745;
+        }
+
+        .color-danger {
+            color: #dc3545;
+        }
+
+        .color-warning {
+            color: #ffc107;
+        }
+
+        .color-info {
+            color: #17a2b8;
+        }
+
+        @media print {
+            body {
+                margin: 0;
+                padding: 8px;
+            }
+        }
     </style>
 </head>
+
 <body>
     <div class="header">
-        <h2>Attendance Analytics Report</h2>
-        <p><strong>Period:</strong> {{ \Carbon\Carbon::parse($start_date)->format('d F Y') }} to {{ \Carbon\Carbon::parse($end_date)->format('d F Y') }}</p>
-        <p><strong>Total Records:</strong> {{ $total_records }}</p>
-        <p><strong>Generated:</strong> {{ now()->format('d F Y, h:i A') }}</p>
+        <div class="header-logo">
+            <img src="{{ public_path('assets/images/logo/main-logo.jpg') }}" alt="Logo">
+        </div>
+        <div class="header-content">
+            <h2>Attendance Analytics Report</h2>
+            <p>{{ \Carbon\Carbon::parse($start_date)->format('d M Y') }} to
+                {{ \Carbon\Carbon::parse($end_date)->format('d M Y') }} | Active Employees: {{ $active_employee_count }}
+                | Records: {{ $total_records }}</p>
+            <p>Generated: {{ now()->format('d M Y, h:i A') }}</p>
+        </div>
+    </div>
+
+    <div class="team-efficiency">
+        <div
+            class="score
+            {{ $team_efficiency >= 90 ? 'color-success' : ($team_efficiency >= 75 ? 'color-warning' : 'color-danger') }}">
+            {{ $team_efficiency }}%
+        </div>
+        <div class="label">Overall Team Efficiency</div>
+        <div class="note">Across {{ $active_employee_count }} active employees (excluding admins)</div>
     </div>
 
     <div class="summary">
-        <h3>Overall Summary</h3>
+        <h3>Summary Statistics</h3>
         <div class="summary-grid">
             <div class="summary-row">
                 <div class="summary-item">
                     <strong class="color-success">{{ $summary['total_present'] }}</strong>
-                    <p>Total Present</p>
+                    <p>Present</p>
                 </div>
                 <div class="summary-item">
-                    <strong class="color-danger">{{ $summary['total_absent'] }}</strong>
-                    <p>Total Absent</p>
+                    <strong>{{ $summary['total_half_day'] }}</strong>
+                    <p>Half Day</p>
                 </div>
                 <div class="summary-item">
-                    <strong class="color-warning">{{ $summary['total_half_day'] }}</strong>
-                    <p>Half Days</p>
+                    <strong class="color-success">{{ $total_approved_leaves }}</strong>
+                    <p>Approved Leaves</p>
                 </div>
                 <div class="summary-item">
-                    <strong class="color-info">{{ $summary['total_leave'] }}</strong>
-                    <p>Leaves</p>
+                    <strong class="color-danger">{{ $total_unapproved_absences }}</strong>
+                    <p>Unapproved Absences</p>
                 </div>
                 <div class="summary-item">
-                    <strong class="color-secondary">{{ $summary['total_holiday'] }}</strong>
-                    <p>Holidays</p>
+                    <strong class="color-warning">{{ $total_late_entries }}</strong>
+                    <p>Late</p>
+                </div>
+                <div class="summary-item">
+                    @php
+                        $rh = floor($total_required_hours);
+                        $rm = round(($total_required_hours - $rh) * 60);
+                    @endphp
+                    <strong>{{ $rh }}h</strong>
+                    <p>Required Hours</p>
+                </div>
+                <div class="summary-item">
+                    @php
+                        $ah = floor($total_actual_hours);
+                        $am = round(($total_actual_hours - $ah) * 60);
+                    @endphp
+                    <strong class="color-info">{{ $ah }}h</strong>
+                    <p>Actual Hours</p>
+                </div>
+                <div class="summary-item">
+                    @php
+                        $oth = floor($summary['total_overtime_hours']);
+                        $otm = round(($summary['total_overtime_hours'] - $oth) * 60);
+                    @endphp
+                    <strong class="color-warning">{{ $oth }}h</strong>
+                    <p>Overtime</p>
                 </div>
             </div>
-        </div>
-        <div style="margin-top: 10px; text-align: center;">
-            <strong>Total Hours Worked:</strong> {{ number_format($summary['total_regular_hours'], 2) }}h
-            <span style="margin: 0 15px;">|</span>
-            <strong>Total Overtime:</strong> {{ number_format($summary['total_overtime_hours'], 2) }}h
         </div>
     </div>
 
-    @foreach($employee_reports as $index => $report)
+    @php $page_height = 0; @endphp
+    @foreach ($employee_reports as $index => $report)
+        @php
+            // Estimate height of employee section (~30px)
+            $section_height = 30;
+            $max_page_height = 210; // A4 height in mm, adjusted for margins
+
+            if ($page_height + $section_height > $max_page_height) {
+                $page_height = 0;
+            } else {
+                $page_height += $section_height;
+            }
+        @endphp
+
         <div class="employee-section">
             <div class="employee-header">
-                <strong>{{ $report['employee']->employee_name }}</strong>
-                (Staff No: {{ $report['employee']->staff_number }})
-                <span style="float: right;">Attendance Rate: <strong>{{ $report['attendance_percentage'] }}%</strong></span>
+                <div>
+                    <strong>{{ $report['employee']->employee_name }}</strong>
+                    ({{ $report['employee']->staff_number }})
+                </div>
+                <div class="efficiency">Eff: {{ $report['work_efficiency'] }}%</div>
             </div>
-
             <div class="employee-body">
                 <div class="stats-grid">
                     <div class="stats-row">
-                        <div class="stat-box stat-primary">
-                            <strong>{{ $report['total_days'] }}</strong>
-                            <p>Total Days</p>
+                        <div class="stat-box">
+                            <strong>{{ $report['present_count'] }}/{{ $report['total_working_days'] }}</strong>
+                            <p>Present/Total Days</p>
                         </div>
-                        <div class="stat-box stat-success">
-                            <strong class="color-success">{{ $report['present_count'] }}</strong>
-                            <p>Present</p>
+                        <div class="stat-box">
+                            <strong class="color-success">{{ $report['attendance_percentage'] }}%</strong>
+                            <p>Attendance%</p>
                         </div>
-                        <div class="stat-box stat-danger">
+                        <div class="stat-box">
                             <strong class="color-danger">{{ $report['absent_count'] }}</strong>
                             <p>Absent</p>
                         </div>
-                        <div class="stat-box stat-warning">
-                            <strong class="color-warning">{{ $report['half_day_count'] }}</strong>
-                            <p>Half Day</p>
-                        </div>
-                        <div class="stat-box stat-info">
+                        <div class="stat-box">
                             <strong class="color-info">{{ $report['leave_count'] }}</strong>
                             <p>Leave</p>
                         </div>
                         <div class="stat-box">
-                            <strong>{{ number_format($report['total_hours'], 1) }}h</strong>
-                            <p>Total Hours</p>
+                            <strong class="color-warning">{{ $report['late_count'] }}</strong>
+                            <p>Late</p>
                         </div>
-                        <div class="stat-box stat-warning">
-                            <strong class="color-warning">{{ number_format($report['overtime_hours'], 1) }}h</strong>
+                        <div class="stat-box">
+                            @php
+                                $th = floor($report['total_hours']);
+                                $tm = round(($report['total_hours'] - $th) * 60);
+                                $rh = floor($report['required_work_hours']);
+                                $rm = round(($report['required_work_hours'] - $rh) * 60);
+                            @endphp
+                            <strong>{{ $th }}h / {{ $rh }}h</strong>
+                            <p>Actual / Required</p>
+                        </div>
+                        <div class="stat-box">
+                            @php
+                                $oth = floor($report['overtime_hours']);
+                                $otm = round(($report['overtime_hours'] - $oth) * 60);
+                            @endphp
+                            <strong class="color-warning">{{ $oth }}h</strong>
                             <p>Overtime</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="dates-section">
-                    @if(count($report['present_dates']) > 0)
-                        <div class="date-group">
-                            <h5 class="color-success">✓ Present Days ({{ count($report['present_dates']) }})</h5>
-                            @foreach($report['present_dates'] as $date)
-                                <span class="badge badge-success">{{ \Carbon\Carbon::parse($date)->format('d M') }}</span>
-                            @endforeach
-                        </div>
-                    @endif
+                @if (count($report['present_dates']) > 0 || count($report['absent_dates']) > 0 || count($report['leave_dates']) > 0)
+                    <div class="dates-section">
+                        @if (count($report['present_dates']) > 0)
+                            <div class="date-group">
+                                <h5 class="color-success">✓ {{ count($report['present_dates']) }} Present:</h5>
+                                @foreach ($report['present_dates'] as $date)
+                                    <span
+                                        class="badge badge-success">{{ \Carbon\Carbon::parse($date)->format('d') }}</span>
+                                @endforeach
+                            </div>
+                        @endif
 
-                    @if(count($report['absent_dates']) > 0)
-                        <div class="date-group">
-                            <h5 class="color-danger">✗ Absent Days ({{ count($report['absent_dates']) }})</h5>
-                            @foreach($report['absent_dates'] as $date)
-                                <span class="badge badge-danger">{{ \Carbon\Carbon::parse($date)->format('d M') }}</span>
-                            @endforeach
-                        </div>
-                    @endif
+                        @if (count($report['absent_dates']) > 0)
+                            <div class="date-group">
+                                <h5 class="color-danger">✗ {{ count($report['absent_dates']) }} Absent:</h5>
+                                @foreach ($report['absent_dates'] as $date)
+                                    <span
+                                        class="badge badge-danger">{{ \Carbon\Carbon::parse($date)->format('d') }}</span>
+                                @endforeach
+                            </div>
+                        @endif
 
-                    @if(count($report['half_day_dates']) > 0)
-                        <div class="date-group">
-                            <h5 class="color-warning">◐ Half Days ({{ count($report['half_day_dates']) }})</h5>
-                            @foreach($report['half_day_dates'] as $date)
-                                <span class="badge badge-warning">{{ \Carbon\Carbon::parse($date)->format('d M') }}</span>
-                            @endforeach
-                        </div>
-                    @endif
-
-                    @if(count($report['leave_dates']) > 0)
-                        <div class="date-group">
-                            <h5 class="color-info">⊙ Leave Days ({{ count($report['leave_dates']) }})</h5>
-                            @foreach($report['leave_dates'] as $date)
-                                <span class="badge badge-info">{{ \Carbon\Carbon::parse($date)->format('d M') }}</span>
-                            @endforeach
-                        </div>
-                    @endif
-
-                    @if(count($report['holiday_dates']) > 0)
-                        <div class="date-group">
-                            <h5 class="color-secondary">☼ Holiday Days ({{ count($report['holiday_dates']) }})</h5>
-                            @foreach($report['holiday_dates'] as $date)
-                                <span class="badge badge-info">{{ \Carbon\Carbon::parse($date)->format('d M') }}</span>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
+                        @if (count($report['leave_dates']) > 0)
+                            <div class="date-group">
+                                <h5 class="color-info">⊙ {{ count($report['leave_dates']) }} Leave:</h5>
+                                @foreach ($report['leave_dates'] as $date)
+                                    <span
+                                        class="badge badge-info">{{ \Carbon\Carbon::parse($date)->format('d') }}</span>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+                @endif
             </div>
         </div>
-
-        @if(($index + 1) % 2 == 0 && ($index + 1) < count($employee_reports))
-            <div class="page-break"></div>
-        @endif
     @endforeach
 
     <div class="footer">
-        <p><strong>© {{ date('Y') }} Voltronix HRM System</strong> | Generated on {{ now()->format('d F Y, h:i:s A') }}</p>
-        <p>This is a system-generated report. For any queries, please contact HR Department.</p>
+        <p><strong>© {{ date('Y') }} Voltronix HRM System</strong> | HR Department</p>
+        <p>Hours: 8:00 AM - 6:00 PM | OT: After 6:00 PM | Late: After 8:00 AM</p>
     </div>
 </body>
+
 </html>

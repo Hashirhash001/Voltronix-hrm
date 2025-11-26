@@ -60,25 +60,34 @@
                     </a>
                 </li>
 
-                <!-- Overtime -->
-                <li class="menu nav-item">
-                    <a href="{{ route('overtime.index') }}" class="nav-link group {{ request()->routeIs('overtime.*') ? 'active' : '' }}">
-                        <div class="flex items-center">
-                            <svg class="shrink-0 group-hover:!text-primary" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
-                                <path d="M12 8V12L14.5 14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                            <span class="text-black ltr:pl-3 rtl:pr-3 dark:text-[#506690] dark:group-hover:text-white-dark">Overtime</span>
-                        </div>
-                    </a>
-                </li>
-
-                <!-- Reports -->
+                <!-- Compliance & Alerts Section -->
                 <h2 class="-mx-4 mb-1 flex items-center bg-white-light/30 px-7 py-3 font-extrabold uppercase dark:bg-dark dark:bg-opacity-[0.08]">
                     <svg class="hidden h-5 w-4 flex-none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="5" y1="12" x2="19" y2="12"></line>
                     </svg>
-                    <span>Reports</span>
+                    <span>Compliance & Alerts</span>
+                </h2>
+
+                <li class="menu nav-item">
+                    <a href="{{ route('document-expiry.index') }}" class="nav-link group {{ request()->routeIs('document-expiry.*') ? 'active' : '' }}">
+                        <div class="flex items-center">
+                            <svg class="shrink-0 group-hover:!text-primary" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path opacity="0.5" d="M3 10C3 6.22876 3 4.34315 4.17157 3.17157C5.34315 2 7.22876 2 11 2H13C16.7712 2 18.6569 2 19.8284 3.17157C21 4.34315 21 6.22876 21 10V14C21 17.7712 21 19.6569 19.8284 20.8284C18.6569 22 16.7712 22 13 22H11C7.22876 22 5.34315 22 4.17157 20.8284C3 19.6569 3 17.7712 3 14V10Z" fill="currentColor"/>
+                                <path d="M16 12C16 11.4477 15.5523 11 15 11H9C8.44772 11 8 11.4477 8 12C8 12.5523 8.44772 13 9 13H15C15.5523 13 16 12.5523 16 12Z" fill="currentColor"/>
+                                <path d="M9 16C8.44772 16 8 16.4477 8 17C8 17.5523 8.44772 18 9 18H13C13.5523 18 14 17.5523 14 17C14 16.4477 13.5523 16 13 16H9Z" fill="currentColor"/>
+                                <path d="M8 7.5C8 6.94772 8.44772 6.5 9 6.5H15C15.5523 6.5 16 6.94772 16 7.5C16 8.05228 15.5523 8.5 15 8.5H9C8.44772 8.5 8 8.05228 8 7.5Z" fill="currentColor"/>
+                            </svg>
+                            <span class="text-black ltr:pl-3 rtl:pr-3 dark:text-[#506690] dark:group-hover:text-white-dark">Document Expiry</span>
+                        </div>
+                    </a>
+                </li>
+
+                <!-- Reports & Analytics Section -->
+                <h2 class="-mx-4 mb-1 flex items-center bg-white-light/30 px-7 py-3 font-extrabold uppercase dark:bg-dark dark:bg-opacity-[0.08]">
+                    <svg class="hidden h-5 w-4 flex-none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>Reports & Analytics</span>
                 </h2>
 
                 <li class="menu nav-item">

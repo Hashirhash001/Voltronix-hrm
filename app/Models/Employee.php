@@ -5,6 +5,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 class Employee extends Model
 {
@@ -23,8 +24,6 @@ class Employee extends Model
         'current_age',
         'duty_joined_date',
         'duty_end_date',
-        'duty_days',
-        'duty_years',
         'last_vacation_date',
         'basic_salary',
         'allowance',
@@ -52,6 +51,8 @@ class Employee extends Model
         'dewa_details',
         'remarks',
         'status',
+        'year_of_completion',
+        'qualification_document',
     ];
 
     protected $casts = [
@@ -76,6 +77,12 @@ class Employee extends Model
         'camp_ejari_renewal_date' => 'date',
         'workman_insurance_expiry_date' => 'date',
         'etisalat_contract_expiry_date' => 'date',
+        'resignation_date' => 'date',
+        'basic_salary' => 'decimal:2',
+        'allowance' => 'decimal:2',
+        'fixed_salary' => 'decimal:2',
+        'total_salary' => 'decimal:2',
+        'recent_increment_amount' => 'decimal:2',
     ];
 
     /**
@@ -119,5 +126,28 @@ class Employee extends Model
             'workman_insurance_expiry_date' => 'Workman Insurance',
             'etisalat_contract_expiry_date' => 'Etisalat Contract',
         ];
+    }
+
+    // Auto-calculate duty days
+    public function getDutyDaysAttribute()
+    {
+        if (!$this->duty_joined_date) {
+            return 0;
+        }
+
+        $endDate = $this->duty_end_date ?? Carbon::now();
+        return $this->duty_joined_date->diffInDays($endDate);
+    }
+
+    // Auto-calculate duty years
+    public function getDutyYearsAttribute()
+    {
+        if (!$this->duty_joined_date) {
+            return 0;
+        }
+
+        $endDate = $this->duty_end_date ?? Carbon::now();
+        $years = $this->duty_joined_date->diffInDays($endDate) / 365.25;
+        return round($years, 2);
     }
 }
