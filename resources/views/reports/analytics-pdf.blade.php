@@ -266,7 +266,7 @@
 <body>
     <div class="header">
         <div class="header-logo">
-            <img src="{{ public_path('assets/images/logo/main-logo.jpg') }}" alt="Logo">
+            <img src="https://hrm.voltronix.ae/assets/images/logo/main-logo.jpg" alt="Logo">
         </div>
         <div class="header-content">
             <h2>Attendance Analytics Report</h2>

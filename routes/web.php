@@ -2,6 +2,7 @@
 // routes/web.php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EmployeeController;
@@ -74,4 +75,10 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('/update', [ProfileController::class, 'update'])->name('update');
         Route::patch('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
     });
+});
+
+// php artisan storage:link
+Route::get('/storage-link', function () {
+    Artisan::call('storage:link');
+    return redirect()->back();
 });

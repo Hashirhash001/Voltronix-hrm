@@ -94,10 +94,23 @@
             border-top: 1px solid #ddd;
             padding-top: 10px;
         }
+        .header-logo {
+            margin: 0 auto 2px auto;
+        }
+
+        .header-logo img {
+            width: 100px;
+            height: 100px;
+            display: block;
+            margin: 0 auto;
+        }
     </style>
 </head>
 <body>
     <div class="header">
+        <div class="header-logo">
+            <img src="https://hrm.voltronix.ae/assets/images/logo/main-logo.jpg" alt="Logo">
+        </div>
         <h2>Attendance Report</h2>
         <p>Period: {{ \Carbon\Carbon::parse($start_date)->format('d M Y') }} to {{ \Carbon\Carbon::parse($end_date)->format('d M Y') }}</p>
         <p>Total Records: {{ $total_records }}</p>

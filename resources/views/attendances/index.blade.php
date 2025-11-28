@@ -26,7 +26,11 @@
                 </button>
                 <button id="btn-open-export" class="btn btn-outline-success">
                     <svg class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        <!-- Box -->
+                        <rect x="4" y="13" width="16" height="7" rx="2" stroke-width="2" />
+                        <!-- Up arrow -->
+                        <path d="M12 4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M8 8l4-4 4 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     Export Report
                 </button>
@@ -437,8 +441,12 @@
                     <div class="mt-6 flex justify-end gap-2">
                         <button type="button" class="btn btn-outline-danger close-export-modal">Cancel</button>
                         <button type="submit" class="btn btn-success">
-                            <svg class="h-5 w-5 mr-2 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            <svg class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <!-- Box -->
+                                <rect x="4" y="13" width="16" height="7" rx="2" stroke-width="2" />
+                                <!-- Up arrow -->
+                                <path d="M12 4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                <path d="M8 8l4-4 4 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                             </svg>
                             Export Report
                         </button>

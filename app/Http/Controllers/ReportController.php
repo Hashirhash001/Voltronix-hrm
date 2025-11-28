@@ -2,22 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Attendance;
-use App\Models\Employee;
 use Carbon\Carbon;
+use App\Models\Employee;
+use App\Models\Attendance;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 
 class ReportController extends Controller
 {
     public function analytics(Request $request)
     {
-        // Show all employees (including admins) in dropdown for filtering
         $employees = Employee::with('user')
             ->orderBy('employee_name')
             ->get();
 
-        // Default date range: current month
         $startDate = $request->start_date ?? Carbon::now()->startOfMonth()->format('Y-m-d');
         $endDate = $request->end_date ?? Carbon::now()->endOfMonth()->format('Y-m-d');
         $employeeId = $request->employee_id;
@@ -37,235 +36,303 @@ class ReportController extends Controller
 
     private function generateReport($startDate, $endDate, $employeeId = null)
     {
-        // Get all employees excluding admin and inactive
+        // 1) Active employees (exclude admins)
         $employeeQuery = Employee::where('status', 'active')
-            ->whereHas('user', function($query) {
-                $query->where('role', '!=', 'admin');
-            });
-
-        $activeEmployeeCount = $employeeQuery->count();
-
-        $query = Attendance::with('employee.user')
-            ->whereBetween('attendance_date', [$startDate, $endDate])
-            ->whereHas('employee', function($q) {
-                $q->where('status', 'active')
-                ->whereHas('user', function($query) {
-                    $query->where('role', '!=', 'admin');
-                });
+            ->whereHas('user', function ($q) {
+                $q->where('role', '!=', 'admin');
             });
 
         if ($employeeId) {
-            $query->where('employee_id', $employeeId);
+            $employeeQuery->where('id', $employeeId);
         }
 
-        $attendances = $query->orderBy('attendance_date', 'asc')->get();
+        $employees = $employeeQuery->get();
+        $activeEmployeeCount = $employees->count();
 
-        // Calculate overall required hours (only for active non-admin employees)
-        $totalWorkingDays = $this->calculateWorkingDays($startDate, $endDate);
+        // 2) Attendance records in range for those employees
+        $attendanceQuery = Attendance::with('employee.user')
+            ->whereBetween('attendance_date', [$startDate, $endDate])
+            ->whereHas('employee', function ($q) {
+                $q->where('status', 'active')
+                  ->whereHas('user', function ($qq) {
+                      $qq->where('role', '!=', 'admin');
+                  });
+            });
+
+        if ($employeeId) {
+            $attendanceQuery->where('employee_id', $employeeId);
+        }
+
+        $attendances = $attendanceQuery->orderBy('attendance_date', 'asc')->get();
+        $attendanceByEmployee = $attendances->groupBy('employee_id');
+
+        // 3) Working days in range (Mon–Sat)
+        $totalWorkingDays = $this->calculateWorkingDays($startDate, $endDate); // already Mon–Sat only
+
+        // >>> ADD THIS GUARD HERE <<<
+        if ($totalWorkingDays <= 0 || $activeEmployeeCount <= 0) {
+            return [
+                'start_date'            => $startDate,
+                'end_date'              => $endDate,
+                'total_working_days'    => $totalWorkingDays,
+                'active_employee_count' => $activeEmployeeCount,
+                'employee_reports'      => [],
+                'team_efficiency'       => 0,
+                'total_required_hours'  => 0,
+                'total_actual_hours'    => 0,
+                'total_late_entries'    => 0,
+                'total_approved_leaves' => 0,
+                'total_unapproved_absences' => 0,
+                'summary' => [
+                    'total_present'        => 0,
+                    'total_absent'         => 0,
+                    'total_half_day'       => 0,
+                    'total_leave'          => 0,
+                    'total_holiday'        => 0,
+                    'total_overtime_hours' => 0,
+                    'expected_slots'       => 0,
+                    'actual_slots'         => 0,
+                ],
+            ];
+        }
+
         $overallRequiredHours = $totalWorkingDays * 10 * $activeEmployeeCount;
 
-        // Group by employee
-        $employeeGroups = $attendances->groupBy('employee_id');
+        // Pre-build list of working dates in range
+        $workingDates = [];
+        $cursor = Carbon::parse($startDate);
+        $end = Carbon::parse($endDate);
+        while ($cursor->lte($end)) {
+            if ($cursor->dayOfWeek !== Carbon::SUNDAY) {
+                $workingDates[] = $cursor->format('Y-m-d');
+            }
+            $cursor->addDay();
+        }
 
+        // 4) Per-employee stats
         $employeeReports = [];
-        $totalLateEntries = 0;
-        $totalApprovedLeaves = 0;
-        $totalUnapprovedAbsences = 0;
+        $totalPresent = 0;
+        $totalLeave = 0;
+        $totalAbsent = 0;
+        $totalHalfDay = 0;
+        $totalHoliday = 0;
+        $totalLate = 0;
+        $totalActualHours = 0;
+        $totalOvertimeHours = 0;
 
-        foreach ($employeeGroups as $empId => $empAttendances) {
-            $employee = $empAttendances->first()->employee;
+        foreach ($employees as $employee) {
+            $empAttendances = $attendanceByEmployee->get($employee->id, collect());
 
-            $empWorkingDays = $totalWorkingDays;
-            $requiredWorkHours = $empWorkingDays * 10;
+            // Map date => status (only for working dates)
+            $statusByDate = [];
+            $lateByDate = [];
+            foreach ($empAttendances as $att) {
+                $d = $att->attendance_date->format('Y-m-d');
+                if (!in_array($d, $workingDates, true)) {
+                    continue; // ignore non‑working days
+                }
+                $statusByDate[$d] = $att->status;
 
+                if ($att->status === 'present' && $att->is_late) {
+                    $lateByDate[$d] = true;
+                }
+            }
+
+            // Classify each working date for this employee
             $presentDates = [];
+            $leaveDates = [];
             $absentDates = [];
             $halfDayDates = [];
-            $leaveDates = [];
             $holidayDates = [];
             $lateDates = [];
 
-            foreach ($empAttendances as $att) {
-                $date = $att->attendance_date->format('Y-m-d');
+            foreach ($workingDates as $d) {
+                $status = $statusByDate[$d] ?? null;
 
-                if ($att->is_late) {
-                    $lateDates[] = [
-                        'date' => $date,
-                        'minutes' => $att->late_minutes,
-                        'status' => $att->late_status
-                    ];
-                    $totalLateEntries++;
-                }
-
-                switch ($att->status) {
+                switch ($status) {
                     case 'present':
-                        $presentDates[] = $date;
-                        break;
-                    case 'absent':
-                        $absentDates[] = $date;
-                        $totalUnapprovedAbsences++;
-                        break;
-                    case 'half_day':
-                        $halfDayDates[] = $date;
+                        $presentDates[] = $d;
+                        if (!empty($lateByDate[$d])) {
+                            $lateDates[] = $d;
+                        }
                         break;
                     case 'leave':
-                        $leaveDates[] = $date;
-                        $totalApprovedLeaves++;
+                        $leaveDates[] = $d;
+                        break;
+                    case 'half_day':
+                        $halfDayDates[] = $d;
                         break;
                     case 'holiday':
-                        $holidayDates[] = $date;
+                        $holidayDates[] = $d;
+                        break;
+                    case 'absent':
+                        $absentDates[] = $d;
+                        break;
+                    default:
+                        // No record at all for this working day -> count as Absent
+                        $absentDates[] = $d;
                         break;
                 }
             }
 
-            $recordedDays = $empAttendances->count();
-            $unrecordedWorkingDays = max(0, $empWorkingDays - $recordedDays - count($holidayDates));
+            // Hours
+            $empTotalHours = $empAttendances->sum('total_hours');
+            $empRegularHours = $empAttendances->sum('regular_hours');
+            $empOvertimeHours = $empAttendances->sum('overtime_hours');
 
-            $totalHours = $empAttendances->sum('total_hours');
-            $regularHours = $empAttendances->sum('regular_hours');
-            $overtimeHours = $empAttendances->sum('overtime_hours');
+            $requiredWorkHours = $totalWorkingDays * 10;
+
+            $attendancePercentage = $totalWorkingDays > 0
+                ? round((count($presentDates) / $totalWorkingDays) * 100, 2)
+                : 0;
 
             $workEfficiency = $this->calculateWorkEfficiency([
-                'total_working_days' => $empWorkingDays,
-                'present_count' => count($presentDates),
-                'required_work_hours' => $requiredWorkHours,
-                'total_hours' => $totalHours,
-                'late_count' => count($lateDates),
-                'absent_count' => count($absentDates),
+                'total_working_days'   => $totalWorkingDays,
+                'present_count'        => count($presentDates),
+                'required_work_hours'  => $requiredWorkHours,
+                'total_hours'          => $empTotalHours,
+                'late_count'           => count($lateDates),
+                'absent_count'         => count($absentDates),
             ]);
 
+            // Aggregate all‑employee totals
+            $totalPresent      += count($presentDates);
+            $totalLeave        += count($leaveDates);
+            $totalAbsent       += count($absentDates);
+            $totalHalfDay      += count($halfDayDates);
+            $totalHoliday      += count($holidayDates);
+            $totalLate         += count($lateDates);
+            $totalActualHours  += $empTotalHours;
+            $totalOvertimeHours+= $empOvertimeHours;
+
             $employeeReports[] = [
-                'employee' => $employee,
-                'total_working_days' => $empWorkingDays,
-                'total_days' => $empAttendances->count(),
-                'present_count' => count($presentDates),
-                'absent_count' => count($absentDates),
-                'half_day_count' => count($halfDayDates),
-                'leave_count' => count($leaveDates) + $unrecordedWorkingDays,
-                'holiday_count' => count($holidayDates),
-                'late_count' => count($lateDates),
-                'present_dates' => $presentDates,
-                'absent_dates' => $absentDates,
-                'half_day_dates' => $halfDayDates,
-                'leave_dates' => $leaveDates,
-                'holiday_dates' => $holidayDates,
-                'late_dates' => $lateDates,
-                'total_hours' => $totalHours,
-                'regular_hours' => $regularHours,
-                'overtime_hours' => $overtimeHours,
-                'required_work_hours' => $requiredWorkHours,
-                'work_efficiency' => $workEfficiency,
-                'attendance_percentage' => $empWorkingDays > 0
-                    ? round((count($presentDates) / $empWorkingDays) * 100, 2)
-                    : 0,
+                'employee'              => $employee,
+                'total_working_days'    => $totalWorkingDays,
+                'present_count'         => count($presentDates),
+                'absent_count'          => count($absentDates),
+                'half_day_count'        => count($halfDayDates),
+                'leave_count'           => count($leaveDates),
+                'holiday_count'         => count($holidayDates),
+                'late_count'            => count($lateDates),
+                'present_dates'         => $presentDates,
+                'absent_dates'          => $absentDates,
+                'half_day_dates'        => $halfDayDates,
+                'leave_dates'           => $leaveDates,
+                'holiday_dates'         => $holidayDates,
+                'late_dates'            => $lateDates,
+                'total_hours'           => round($empTotalHours, 2),
+                'regular_hours'         => round($empRegularHours, 2),
+                'overtime_hours'        => round($empOvertimeHours, 2),
+                'required_work_hours'   => $requiredWorkHours,
+                'attendance_percentage' => $attendancePercentage,
+                'work_efficiency'       => $workEfficiency,
             ];
         }
 
-        $totalActualHours = $attendances->sum('total_hours');
+        // Sort employees by efficiency
+        usort($employeeReports, fn($a, $b) => $b['work_efficiency'] <=> $a['work_efficiency']);
 
-        // Calculate team efficiency
-        $teamEfficiency = $this->calculateWorkEfficiency([
-            'total_working_days' => $totalWorkingDays * $activeEmployeeCount,
-            'present_count' => $attendances->where('status', 'present')->count(),
-            'required_work_hours' => $overallRequiredHours,
-            'total_hours' => $totalActualHours,
-            'late_count' => $totalLateEntries,
-            'absent_count' => $totalUnapprovedAbsences,
-        ]);
+        // Team efficiency = average of individual efficiencies
+        $teamEfficiency = $activeEmployeeCount > 0
+            ? round(collect($employeeReports)->avg('work_efficiency'), 2)
+            : 0;
+
+        // Verification: totals must match working slots
+        $expectedSlots = $totalWorkingDays * $activeEmployeeCount;
+        $actualSlots   = $totalPresent + $totalLeave + $totalAbsent + $totalHalfDay + $totalHoliday;
+
+        if ($expectedSlots !== $actualSlots) {
+            Log::warning('Attendance slot mismatch', [
+                'expected_slots' => $expectedSlots,
+                'actual_slots'   => $actualSlots,
+                'present'        => $totalPresent,
+                'leave'          => $totalLeave,
+                'absent'         => $totalAbsent,
+                'half_day'       => $totalHalfDay,
+                'holiday'        => $totalHoliday,
+            ]);
+        }
 
         return [
-            'start_date' => $startDate,
-            'end_date' => $endDate,
-            'total_working_days' => $totalWorkingDays,
+            'start_date'            => $startDate,
+            'end_date'              => $endDate,
+            'total_working_days'    => $totalWorkingDays,
             'active_employee_count' => $activeEmployeeCount,
-            'total_records' => $attendances->count(),
-            'total_required_hours' => $overallRequiredHours,
-            'total_actual_hours' => $totalActualHours,
-            'total_late_entries' => $totalLateEntries,
-            'total_approved_leaves' => $totalApprovedLeaves,
-            'total_unapproved_absences' => $totalUnapprovedAbsences,
-            'team_efficiency' => $teamEfficiency,
-            'employee_reports' => $employeeReports,
+            'employee_reports'      => $employeeReports,
+            'team_efficiency'       => $teamEfficiency,
+            'total_required_hours'  => $overallRequiredHours,
+            'total_actual_hours'    => round($totalActualHours, 2),
+            'total_late_entries'    => $totalLate,
+            'total_approved_leaves' => $totalLeave,
+            'total_unapproved_absences' => $totalAbsent,
             'summary' => [
-                'total_present' => $attendances->where('status', 'present')->count(),
-                'total_absent' => $attendances->where('status', 'absent')->count(),
-                'total_half_day' => $attendances->where('status', 'half_day')->count(),
-                'total_leave' => $attendances->where('status', 'leave')->count(),
-                'total_holiday' => $attendances->where('status', 'holiday')->count(),
-                'total_regular_hours' => $attendances->sum('regular_hours'),
-                'total_overtime_hours' => $attendances->sum('overtime_hours'),
-            ]
+                'total_present'        => $totalPresent,
+                'total_absent'         => $totalAbsent,
+                'total_half_day'       => $totalHalfDay,
+                'total_leave'          => $totalLeave,
+                'total_holiday'        => $totalHoliday,
+                'total_overtime_hours' => round($totalOvertimeHours, 2),
+                'expected_slots'       => $expectedSlots,
+                'actual_slots'         => $actualSlots,
+            ],
         ];
     }
 
     private function calculateWorkingDays($startDate, $endDate)
     {
-        $totalWorkingDays = 0;
-        $currentDate = Carbon::parse($startDate);
-        $endDateCarbon = Carbon::parse($endDate);
+        $start = Carbon::parse($startDate);
+        $end = Carbon::parse($endDate);
+        $workingDays = 0;
 
-        while ($currentDate->lessThanOrEqualTo($endDateCarbon)) {
-            if ($currentDate->dayOfWeek !== 0) {
-                $totalWorkingDays++;
+        while ($start->lte($end)) {
+            if ($start->dayOfWeek !== Carbon::SUNDAY) {
+                $workingDays++;
             }
-            $currentDate->addDay();
+            $start->addDay();
         }
 
-        return $totalWorkingDays;
+        return $workingDays;
     }
 
-    /**
-     * Convert decimal hours to hours:minutes format
-     */
-    private function hoursToHoursMinutes($decimalHours)
-    {
-        $hours = floor($decimalHours);
-        $minutes = round(($decimalHours - $hours) * 60);
-        return sprintf('%dh %02dm', $hours, $minutes);
-    }
-
-    /**
-     * Calculate Work Efficiency Score
-     *
-     * Criteria:
-     * 1. Attendance Rate (40%): Present days / Working days
-     * 2. Work Hours Completion (30%): Actual hours / Required hours
-     * 3. Punctuality (20%): Days on time / Present days
-     * 4. Absence Impact (10%): Penalty for absences
-     *
-     * Score: 0-100%
-     */
     private function calculateWorkEfficiency($data)
     {
-        $score = 0;
+        $workingDays   = (int) ($data['total_working_days']   ?? 0);
+        $presentDays   = (int) ($data['present_count']        ?? 0);
+        $requiredHours = (float)($data['required_work_hours'] ?? 0);
+        $actualHours   = (float)($data['total_hours']         ?? 0);
+        $lateCount     = (int) ($data['late_count']           ?? 0);
+        $absentCount   = (int) ($data['absent_count']         ?? 0);
 
-        // 1. Attendance Rate (40 points)
-        if ($data['total_working_days'] > 0) {
-            $attendanceRate = ($data['present_count'] / $data['total_working_days']) * 100;
-            $score += ($attendanceRate / 100) * 40;
+        // If no working days at all, efficiency is 0 – avoid any division.
+        if ($workingDays <= 0) {
+            return 0;
         }
 
-        // 2. Work Hours Completion (30 points)
-        if ($data['required_work_hours'] > 0) {
-            $hoursCompletionRate = min(($data['total_hours'] / $data['required_work_hours']) * 100, 100);
-            $score += ($hoursCompletionRate / 100) * 30;
-        }
+        // 1. Attendance Rate Score (40%) – safe division
+        $attendanceRate = $workingDays > 0
+            ? ($presentDays / $workingDays) * 100
+            : 0;
+        $attendanceScore = min(100, $attendanceRate) * 0.40;
 
-        // 3. Punctuality (20 points)
-        if ($data['present_count'] > 0) {
-            $onTimeDays = $data['present_count'] - $data['late_count'];
-            $punctualityRate = ($onTimeDays / $data['present_count']) * 100;
-            $score += ($punctualityRate / 100) * 20;
-        } else {
-            // If no present days, give full punctuality score
-            $score += 20;
-        }
+        // 2. Work Hours Completion Score (30%) – safe division
+        $hoursCompletionRate = $requiredHours > 0
+            ? min(100, ($actualHours / $requiredHours) * 100)
+            : 0;
+        $hoursScore = $hoursCompletionRate * 0.30;
 
-        // 4. Absence Impact (10 points) - Penalty for absences
-        $absencePenalty = min($data['absent_count'] * 2, 10); // 2 points penalty per absence, max 10
-        $score += max(10 - $absencePenalty, 0);
+        // 3. Punctuality Score (20%) – safe division
+        $onTimeDays = max(0, $presentDays - $lateCount);
+        $punctualityRate = $presentDays > 0
+            ? ($onTimeDays / max(1, $presentDays)) * 100
+            : 100; // if no present days, treat as neutral (full points)
+        $punctualityScore = $punctualityRate * 0.20;
 
-        return round($score, 2);
+        // 4. Absence Penalty (10% max deduction)
+        $absencePenalty = min(10, $absentCount * 2);
+
+        $totalScore = $attendanceScore + $hoursScore + $punctualityScore - $absencePenalty;
+
+        return max(0, round($totalScore, 2));
     }
 
     public function employeeDetail(Request $request, $employeeId)
@@ -280,20 +347,13 @@ class ReportController extends Controller
             ->orderBy('attendance_date', 'desc')
             ->get();
 
-        // Calculate total working days in date range (Mon-Sat only)
-        $totalWorkingDays = 0;
-        $currentDate = Carbon::parse($startDate);
-        $endDateCarbon = Carbon::parse($endDate);
-
-        while ($currentDate->lessThanOrEqualTo($endDateCarbon)) {
-            if ($currentDate->dayOfWeek !== 0) {
-                $totalWorkingDays++;
-            }
-            $currentDate->addDay();
-        }
-
-        // Required work hours (10 hours per working day)
+        $totalWorkingDays = $this->calculateWorkingDays($startDate, $endDate);
         $requiredWorkHours = $totalWorkingDays * 10;
+
+        // FIXED: Only count late when status is present
+        $lateCount = $attendances->where('is_late', true)
+                                 ->where('status', 'present')
+                                 ->count();
 
         $stats = [
             'total_working_days' => $totalWorkingDays,
@@ -307,13 +367,12 @@ class ReportController extends Controller
             'regular_hours' => $attendances->sum('regular_hours'),
             'overtime_hours' => $attendances->sum('overtime_hours'),
             'required_work_hours' => $requiredWorkHours,
-            'late_count' => $attendances->where('is_late', true)->count(),
+            'late_count' => $lateCount, // FIXED
             'attendance_percentage' => $totalWorkingDays > 0
                 ? round(($attendances->where('status', 'present')->count() / $totalWorkingDays) * 100, 2)
                 : 0,
         ];
 
-        // Calculate work efficiency
         $stats['work_efficiency'] = $this->calculateWorkEfficiency([
             'total_working_days' => $totalWorkingDays,
             'present_count' => $stats['present'],
@@ -361,14 +420,12 @@ class ReportController extends Controller
             $file = fopen('php://output', 'w');
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
-            // Report Header
             fputcsv($file, ['Attendance Analytics Report']);
             fputcsv($file, ['Period: ' . $reportData['start_date'] . ' to ' . $reportData['end_date']]);
             fputcsv($file, ['Active Employees: ' . $reportData['active_employee_count']]);
             fputcsv($file, ['Team Efficiency: ' . $reportData['team_efficiency'] . '%']);
             fputcsv($file, []);
 
-            // Summary Statistics
             fputcsv($file, ['Summary Statistics']);
             fputcsv($file, ['Total Present', 'Half Days', 'Approved Leaves', 'Unapproved Absences', 'Late Entries', 'Required Hours', 'Actual Hours', 'Overtime Hours']);
             fputcsv($file, [
@@ -379,11 +436,10 @@ class ReportController extends Controller
                 $reportData['total_late_entries'],
                 number_format($reportData['total_required_hours'], 2) . 'h',
                 number_format($reportData['total_actual_hours'], 2) . 'h',
-                number_format($reportData['summary']['total_overtime_hours'], 2) . 'h',
+                number_format($reportData['summary']['total_overtime_hours'], 2) . 'h', // FIXED
             ]);
             fputcsv($file, []);
 
-            // Employee Details Header
             fputcsv($file, ['Employee Details']);
             fputcsv($file, [
                 'Staff Number',
@@ -398,7 +454,6 @@ class ReportController extends Controller
                 'Overtime Hours',
             ]);
 
-            // Employee Data
             foreach ($reportData['employee_reports'] as $report) {
                 $hours = floor($report['total_hours']);
                 $minutes = round(($report['total_hours'] - $hours) * 60);
@@ -458,19 +513,13 @@ class ReportController extends Controller
             ->orderBy('attendance_date', 'desc')
             ->get();
 
-        // Calculate total working days
-        $totalWorkingDays = 0;
-        $currentDate = Carbon::parse($startDate);
-        $endDateCarbon = Carbon::parse($endDate);
-
-        while ($currentDate->lessThanOrEqualTo($endDateCarbon)) {
-            if ($currentDate->dayOfWeek !== 0) {
-                $totalWorkingDays++;
-            }
-            $currentDate->addDay();
-        }
-
+        $totalWorkingDays = $this->calculateWorkingDays($startDate, $endDate);
         $requiredWorkHours = $totalWorkingDays * 10;
+
+        // FIXED: Only count late when status is present
+        $lateCount = $attendances->where('is_late', true)
+                                 ->where('status', 'present')
+                                 ->count();
 
         $stats = [
             'total_working_days' => $totalWorkingDays,
@@ -484,7 +533,7 @@ class ReportController extends Controller
             'regular_hours' => $attendances->sum('regular_hours'),
             'overtime_hours' => $attendances->sum('overtime_hours'),
             'required_work_hours' => $requiredWorkHours,
-            'late_count' => $attendances->where('is_late', true)->count(),
+            'late_count' => $lateCount, // FIXED
             'attendance_percentage' => $totalWorkingDays > 0
                 ? round(($attendances->where('status', 'present')->count() / $totalWorkingDays) * 100, 2)
                 : 0,
@@ -519,14 +568,12 @@ class ReportController extends Controller
             $file = fopen('php://output', 'w');
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
-            // Header Info
             fputcsv($file, ['Employee Attendance Report']);
             fputcsv($file, ['Employee Name: ' . $employee->employee_name]);
             fputcsv($file, ['Staff Number: ' . $employee->staff_number]);
             fputcsv($file, ['Period: ' . $startDate . ' to ' . $endDate]);
             fputcsv($file, []);
 
-            // Statistics
             fputcsv($file, ['Summary Statistics']);
             fputcsv($file, [
                 'Attendance %', 'Present', 'Absent', 'Half Day', 'Leave', 'Late Entries',
@@ -546,7 +593,6 @@ class ReportController extends Controller
             ]);
             fputcsv($file, []);
 
-            // Detailed Records
             fputcsv($file, ['Detailed Attendance Records']);
             fputcsv($file, [
                 'Date', 'Day', 'Check In', 'Check Out', 'Late Status',
@@ -595,5 +641,4 @@ class ReportController extends Controller
 
         return $pdf->download($filename);
     }
-
 }

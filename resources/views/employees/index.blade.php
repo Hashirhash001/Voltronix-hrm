@@ -17,7 +17,7 @@
         <div class="mb-6 flex items-center justify-between">
             <h2 class="text-2xl font-semibold dark:text-white-light">Employees List</h2>
             <div class="flex gap-2">
-                <a href="{{ route('employees.import') }}" class="btn btn-outline-info gap-2">
+                {{-- <a href="{{ route('employees.import') }}" class="btn btn-outline-info gap-2">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 5V19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                         <path d="M19 12L12 19L5 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -31,7 +31,7 @@
                         <path d="M5 12L12 5L19 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                     Export
-                </a>
+                </a> --}}
 
                 <a href="{{ route('employees.create') }}" class="btn btn-primary gap-2">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
