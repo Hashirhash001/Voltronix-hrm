@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Employee;
 use Illuminate\Http\Request;
+use App\Models\EmployeeDocument;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
@@ -67,7 +68,7 @@ class EmployeeController extends Controller
             'designation' => 'required|string',
             'qualification' => 'nullable|string',
             'year_of_completion' => 'nullable|integer|min:1950|max:' . date('Y'),
-            'qualification_document' => 'nullable|file|mimes:pdf|max:2048',
+            'qualification_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'pp_status' => 'nullable|string',
             'uae_contact' => 'nullable|string',
             'home_country_contact' => 'nullable|string',
@@ -76,30 +77,33 @@ class EmployeeController extends Controller
             'duty_joined_date' => 'nullable|date',
             'duty_end_date' => 'nullable|date',
             'last_vacation_date' => 'nullable|date',
-            'basic_salary' => 'nullable|numeric|min:0|max:9999999.99',
-            'allowance' => 'nullable|numeric|min:0|max:9999999.99',
-            'fixed_salary' => 'nullable|numeric|min:0|max:9999999.99',
-            'total_salary' => 'nullable|numeric|min:0|max:9999999.99',
-            'recent_increment_amount' => 'nullable|numeric|min:0|max:9999999.99',
+            'basic_salary' => 'nullable|numeric|min:0',
+            'allowance' => 'nullable|numeric|min:0',
+            'fixed_salary' => 'nullable|numeric|min:0',
+            'total_salary' => 'nullable|numeric|min:0',
+            'recent_increment_amount' => 'nullable|numeric|min:0',
             'increment_date' => 'nullable|date',
             'passport_expiry_date' => 'nullable|date',
+            'passport_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'visa_expiry_date' => 'nullable|date',
+            'visa_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'visit_expiry_date' => 'nullable|date',
+            'visit_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'eid_expiry_date' => 'nullable|date',
+            'eid_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'health_insurance_expiry_date' => 'nullable|date',
+            'health_insurance_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'driving_license_expiry_date' => 'nullable|date',
+            'driving_license_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'salary_card_details' => 'nullable|string',
             'iloe_insurance_expiry_date' => 'nullable|date',
-            'vtnx_trade_license_renewal_date' => 'nullable|date',
-            'po_box_renewal_date' => 'nullable|date',
+            'iloe_insurance_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'soe_card_renewal_date' => 'nullable|date',
+            'soe_card_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'dcd_card_renewal_date' => 'nullable|date',
-            'voltronix_est_card_renewal_date' => 'nullable|date',
-            'warehouse_ejari_renewal_date' => 'nullable|date',
-            'camp_ejari_renewal_date' => 'nullable|date',
+            'dcd_card_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'workman_insurance_expiry_date' => 'nullable|date',
-            'etisalat_contract_expiry_date' => 'nullable|date',
-            'dewa_details' => 'nullable|string',
+            'workman_insurance_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'remarks' => 'nullable|string',
             'status' => 'required|in:active,inactive,vacation,terminated,resigned',
         ]);
@@ -107,27 +111,32 @@ class EmployeeController extends Controller
         try {
             DB::beginTransaction();
 
-            // Step 1: Create User
             $user = User::create([
                 'name' => $validated['employee_name'],
                 'email' => $validated['email'],
                 'password' => Hash::make('password123'),
             ]);
 
-            // Step 2: Handle file upload
-            $qualificationDocumentPath = null;
-            if ($request->hasFile('qualification_document')) {
-                $qualificationDocumentPath = $request->file('qualification_document')
-                    ->store('qualification_documents', 'public');
-            }
-
-            // Step 3: Prepare salary values
             $basicSalary = (float) ($validated['basic_salary'] ?? 0);
             $allowance = (float) ($validated['allowance'] ?? 0);
             $fixedSalary = (float) ($validated['fixed_salary'] ?? 0);
             $totalSalary = $validated['total_salary'] ?? ($basicSalary + $allowance + $fixedSalary);
 
-            // Step 4: Build employee data array with correct field names
+            // Handle document uploads
+            $documentFields = [
+                'qualification_document',
+                'passport_document',
+                'visa_document',
+                'visit_document',
+                'eid_document',
+                'health_insurance_document',
+                'driving_license_document',
+                'iloe_insurance_document',
+                'soe_card_document',
+                'dcd_card_document',
+                'workman_insurance_document',
+            ];
+
             $employeeData = [
                 'user_id' => $user->id,
                 'staff_number' => $validated['staff_number'],
@@ -135,7 +144,6 @@ class EmployeeController extends Controller
                 'designation' => $validated['designation'],
                 'qualification' => $validated['qualification'] ?? null,
                 'year_of_completion' => $validated['year_of_completion'] ?? null,
-                'qualification_document' => $qualificationDocumentPath,
                 'pp_status' => $validated['pp_status'] ?? null,
                 'uae_contact' => $validated['uae_contact'] ?? null,
                 'home_country_contact' => $validated['home_country_contact'] ?? null,
@@ -158,22 +166,24 @@ class EmployeeController extends Controller
                 'driving_license_expiry_date' => $validated['driving_license_expiry_date'] ?? null,
                 'salary_card_details' => $validated['salary_card_details'] ?? null,
                 'iloe_insurance_expiry_date' => $validated['iloe_insurance_expiry_date'] ?? null,
-                'vtnx_trade_license_renewal_date' => $validated['vtnx_trade_license_renewal_date'] ?? null,
-                'po_box_renewal_date' => $validated['po_box_renewal_date'] ?? null,
                 'soe_card_renewal_date' => $validated['soe_card_renewal_date'] ?? null,
                 'dcd_card_renewal_date' => $validated['dcd_card_renewal_date'] ?? null,
-                'voltronix_est_card_renewal_date' => $validated['voltronix_est_card_renewal_date'] ?? null,
-                'warehouse_ejari_renewal_date' => $validated['warehouse_ejari_renewal_date'] ?? null,
-                'camp_ejari_renewal_date' => $validated['camp_ejari_renewal_date'] ?? null,
                 'workman_insurance_expiry_date' => $validated['workman_insurance_expiry_date'] ?? null,
-                'etisalat_contract_expiry_date' => $validated['etisalat_contract_expiry_date'] ?? null,
-                'dewa_details' => $validated['dewa_details'] ?? null,
                 'remarks' => $validated['remarks'] ?? null,
                 'status' => $validated['status'],
             ];
 
-            // Step 5: Create Employee
+            // Create employee first to get ID
             $employee = Employee::create($employeeData);
+
+            // Upload documents after employee creation
+            foreach ($documentFields as $field) {
+                if ($request->hasFile($field)) {
+                    $file = $request->file($field);
+                    $filePath = $file->store('employee_documents/' . $employee->id, 'public');
+                    $employee->update([$field => $filePath]);
+                }
+            }
 
             DB::commit();
 
@@ -186,7 +196,7 @@ class EmployeeController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Employee Store Error: ' . $e->getMessage() . ' | Trace: ' . $e->getTraceAsString());
+            Log::error('Employee Store Error: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,
@@ -214,7 +224,7 @@ class EmployeeController extends Controller
             'designation' => 'required|string',
             'qualification' => 'nullable|string',
             'year_of_completion' => 'nullable|integer|min:1950|max:' . date('Y'),
-            'qualification_document' => 'nullable|file|mimes:pdf|max:2048',
+            'qualification_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'pp_status' => 'nullable|string',
             'uae_contact' => 'nullable|string',
             'home_country_contact' => 'nullable|string',
@@ -230,23 +240,26 @@ class EmployeeController extends Controller
             'recent_increment_amount' => 'nullable|numeric|min:0',
             'increment_date' => 'nullable|date',
             'passport_expiry_date' => 'nullable|date',
+            'passport_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'visa_expiry_date' => 'nullable|date',
+            'visa_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'visit_expiry_date' => 'nullable|date',
+            'visit_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'eid_expiry_date' => 'nullable|date',
+            'eid_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'health_insurance_expiry_date' => 'nullable|date',
+            'health_insurance_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'driving_license_expiry_date' => 'nullable|date',
+            'driving_license_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'salary_card_details' => 'nullable|string',
             'iloe_insurance_expiry_date' => 'nullable|date',
-            'vtnx_trade_license_renewal_date' => 'nullable|date',
-            'po_box_renewal_date' => 'nullable|date',
+            'iloe_insurance_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'soe_card_renewal_date' => 'nullable|date',
+            'soe_card_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'dcd_card_renewal_date' => 'nullable|date',
-            'voltronix_est_card_renewal_date' => 'nullable|date',
-            'warehouse_ejari_renewal_date' => 'nullable|date',
-            'camp_ejari_renewal_date' => 'nullable|date',
+            'dcd_card_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'workman_insurance_expiry_date' => 'nullable|date',
-            'etisalat_contract_expiry_date' => 'nullable|date',
-            'dewa_details' => 'nullable|string',
+            'workman_insurance_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'remarks' => 'nullable|string',
             'status' => 'required|in:active,inactive,vacation,terminated,resigned',
         ]);
@@ -254,14 +267,30 @@ class EmployeeController extends Controller
         try {
             DB::beginTransaction();
 
-            // Handle file upload
-            if ($request->hasFile('qualification_document')) {
-                // Delete old document if exists
-                if ($employee->qualification_document) {
-                    Storage::disk('public')->delete($employee->qualification_document);
+            // Handle document uploads
+            $documentFields = [
+                'qualification_document',
+                'passport_document',
+                'visa_document',
+                'visit_document',
+                'eid_document',
+                'health_insurance_document',
+                'driving_license_document',
+                'iloe_insurance_document',
+                'soe_card_document',
+                'dcd_card_document',
+                'workman_insurance_document',
+            ];
+
+            foreach ($documentFields as $field) {
+                if ($request->hasFile($field)) {
+                    // Delete old document if exists
+                    if ($employee->$field) {
+                        Storage::disk('public')->delete($employee->$field);
+                    }
+                    $file = $request->file($field);
+                    $validated[$field] = $file->store('employee_documents/' . $employee->id, 'public');
                 }
-                $validated['qualification_document'] = $request->file('qualification_document')
-                    ->store('qualification_documents', 'public');
             }
 
             $employee->update($validated);

@@ -224,13 +224,17 @@
                 <tr>
                     <td>{{ $attendance->attendance_date->format('d M Y') }}</td>
                     <td>{{ $attendance->attendance_date->format('D') }}</td>
-                    <td>{{ $attendance->check_in_time ? $attendance->check_in_time->format('H:i') : '-' }}</td>
-                    <td>{{ $attendance->check_out_time ? $attendance->check_out_time->format('H:i') : '-' }}</td>
+                    <td>{{ $attendance->check_in_time ? $attendance->check_in_time->format('H:i A') : '-' }}</td>
+                    <td>{{ $attendance->check_out_time ? $attendance->check_out_time->format('H:i A') : '-' }}</td>
                     <td>
-                        @if ($attendance->is_late)
-                            <span class="color-danger">{{ $attendance->late_status }}</span>
+                        @if ($attendance->status == 'present')
+                            @if ($attendance->is_late)
+                                <span class="color-danger">{{ $attendance->late_status }}</span>
+                            @else
+                                <span class="color-success">On Time</span>
+                            @endif
                         @else
-                            <span class="color-success">On Time</span>
+                            {{ $attendance->status }}
                         @endif
                     </td>
                     <td>{{ number_format($attendance->regular_hours ?? 0, 2) }}h</td>

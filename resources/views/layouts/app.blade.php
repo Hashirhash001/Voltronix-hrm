@@ -23,6 +23,10 @@
 
     {{-- Select2 Dark Theme (optional) --}}
     <style>
+        .nav-item{
+            margin-top: .5rem !important;
+        }
+
         .select2-container--default .select2-selection--single {
             background-color: #fff;
             border: 1px solid #e0e6ed;

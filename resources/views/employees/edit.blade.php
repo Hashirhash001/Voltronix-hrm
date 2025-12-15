@@ -18,7 +18,7 @@
     </ul>
 
     <div class="pt-5">
-        <form id="employeeForm" action="{{ route('employees.update', $employee) }}" method="POST" class="space-y-5">
+        <form id="employeeForm" action="{{ route('employees.update', $employee) }}" method="POST" enctype="multipart/form-data" class="space-y-5">
             @csrf
             @method('PUT')
 
@@ -44,6 +44,7 @@
                     <div>
                         <label for="email">Email</label>
                         <input id="email" type="email" class="form-input bg-gray-100 dark:bg-gray-800 cursor-not-allowed" value="{{ $employee->user->email ?? 'N/A' }}" disabled/>
+                        <p class="text-xs text-gray-500 mt-1">Email cannot be changed</p>
                     </div>
                 </div>
 
@@ -64,19 +65,19 @@
 
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
                     <div>
-                        <label for="qualification_document">Qualification Document (PDF only)</label>
+                        <label for="qualification_document">Qualification Document</label>
                         @if($employee->qualification_document)
                             <div class="mb-2 flex items-center gap-2">
-                                <a href="{{ Storage::url($employee->qualification_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                <a href="{{ asset('storage/' . $employee->qualification_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
                                     <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/>
                                     </svg>
                                     View Current Document
                                 </a>
                             </div>
                         @endif
-                        <input id="qualification_document" type="file" name="qualification_document" class="form-input" accept=".pdf">
-                        <p class="text-xs text-gray-500 mt-1">Upload new to replace existing (Max: 2MB)</p>
+                        <input id="qualification_document" type="file" name="qualification_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
+                        <p class="text-xs text-gray-500 mt-1">Upload new to replace existing (Max: 5MB)</p>
                     </div>
                     <div>
                         <label for="pp_status">PP Status</label>
@@ -132,14 +133,13 @@
                     <div>
                         <label for="duty_end_date">Duty End Date</label>
                         <input id="duty_end_date" type="date" name="duty_end_date" class="form-input" value="{{ old('duty_end_date', $employee->duty_end_date?->format('Y-m-d')) }}">
-                        <p class="text-xs text-gray-500 mt-1">Leave blank if ongoing. Fill for Resigned/Terminated status</p>
+                        <p class="text-xs text-gray-500 mt-1">Leave blank if ongoing</p>
                     </div>
                     <div>
                         <label for="last_vacation_date">Last Vacation Date</label>
                         <input id="last_vacation_date" type="date" name="last_vacation_date" class="form-input" value="{{ old('last_vacation_date', $employee->last_vacation_date?->format('Y-m-d')) }}">
                     </div>
                 </div>
-
 
                 <hr class="my-6 border-white-light dark:border-[#1b2e4b]">
 
@@ -165,7 +165,7 @@
                     <div>
                         <label for="total_salary">Total Salary</label>
                         <input id="total_salary" type="number" step="0.01" class="form-input bg-gray-100 dark:bg-gray-800" placeholder="0.00" value="{{ old('total_salary', $employee->total_salary) }}" readonly/>
-                        <input type="hidden" id="total_salary_input" name="total_salary" value="0"/>
+                        <input type="hidden" id="total_salary_input" name="total_salary" value="{{ $employee->total_salary }}"/>
                     </div>
                 </div>
 
@@ -191,37 +191,135 @@
                 <!-- Personal Documents Section -->
                 <h6 class="mb-4 text-base font-bold">Personal Documents</h6>
 
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
                     <div>
                         <label for="passport_expiry_date">Passport Expiry Date</label>
                         <input id="passport_expiry_date" type="date" name="passport_expiry_date" class="form-input" value="{{ old('passport_expiry_date', $employee->passport_expiry_date?->format('Y-m-d')) }}"/>
                     </div>
+                    <div>
+                        <label for="passport_document">Passport Document</label>
+                        @if($employee->passport_document)
+                            <div class="mb-2">
+                                <a href="{{ asset('storage/' . $employee->passport_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/>
+                                    </svg>
+                                    View Current
+                                </a>
+                            </div>
+                        @endif
+                        <input id="passport_document" type="file" name="passport_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
+                        <p class="text-xs text-gray-500 mt-1">Max: 5MB (PDF, JPG, PNG)</p>
+                    </div>
+                </div>
 
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
                     <div>
                         <label for="visa_expiry_date">Visa Expiry Date</label>
                         <input id="visa_expiry_date" type="date" name="visa_expiry_date" class="form-input" value="{{ old('visa_expiry_date', $employee->visa_expiry_date?->format('Y-m-d')) }}"/>
                     </div>
+                    <div>
+                        <label for="visa_document">Visa Document</label>
+                        @if($employee->visa_document)
+                            <div class="mb-2">
+                                <a href="{{ asset('storage/' . $employee->visa_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/>
+                                    </svg>
+                                    View Current
+                                </a>
+                            </div>
+                        @endif
+                        <input id="visa_document" type="file" name="visa_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
+                        <p class="text-xs text-gray-500 mt-1">Max: 5MB (PDF, JPG, PNG)</p>
+                    </div>
+                </div>
 
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
                     <div>
                         <label for="visit_expiry_date">Visit Permit Expiry Date</label>
                         <input id="visit_expiry_date" type="date" name="visit_expiry_date" class="form-input" value="{{ old('visit_expiry_date', $employee->visit_expiry_date?->format('Y-m-d')) }}"/>
                     </div>
+                    <div>
+                        <label for="visit_document">Visit Permit Document</label>
+                        @if($employee->visit_document)
+                            <div class="mb-2">
+                                <a href="{{ asset('storage/' . $employee->visit_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/>
+                                    </svg>
+                                    View Current
+                                </a>
+                            </div>
+                        @endif
+                        <input id="visit_document" type="file" name="visit_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
+                        <p class="text-xs text-gray-500 mt-1">Max: 5MB (PDF, JPG, PNG)</p>
+                    </div>
                 </div>
 
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
                     <div>
                         <label for="eid_expiry_date">EID Expiry Date</label>
                         <input id="eid_expiry_date" type="date" name="eid_expiry_date" class="form-input" value="{{ old('eid_expiry_date', $employee->eid_expiry_date?->format('Y-m-d')) }}"/>
                     </div>
+                    <div>
+                        <label for="eid_document">EID Document</label>
+                        @if($employee->eid_document)
+                            <div class="mb-2">
+                                <a href="{{ asset('storage/' . $employee->eid_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/>
+                                    </svg>
+                                    View Current
+                                </a>
+                            </div>
+                        @endif
+                        <input id="eid_document" type="file" name="eid_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
+                        <p class="text-xs text-gray-500 mt-1">Max: 5MB (PDF, JPG, PNG)</p>
+                    </div>
+                </div>
 
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
                     <div>
                         <label for="health_insurance_expiry_date">Health Insurance Expiry</label>
                         <input id="health_insurance_expiry_date" type="date" name="health_insurance_expiry_date" class="form-input" value="{{ old('health_insurance_expiry_date', $employee->health_insurance_expiry_date?->format('Y-m-d')) }}"/>
                     </div>
+                    <div>
+                        <label for="health_insurance_document">Health Insurance Document</label>
+                        @if($employee->health_insurance_document)
+                            <div class="mb-2">
+                                <a href="{{ asset('storage/' . $employee->health_insurance_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/>
+                                    </svg>
+                                    View Current
+                                </a>
+                            </div>
+                        @endif
+                        <input id="health_insurance_document" type="file" name="health_insurance_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
+                        <p class="text-xs text-gray-500 mt-1">Max: 5MB (PDF, JPG, PNG)</p>
+                    </div>
+                </div>
 
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
                     <div>
                         <label for="driving_license_expiry_date">Driving License Expiry</label>
                         <input id="driving_license_expiry_date" type="date" name="driving_license_expiry_date" class="form-input" value="{{ old('driving_license_expiry_date', $employee->driving_license_expiry_date?->format('Y-m-d')) }}"/>
+                    </div>
+                    <div>
+                        <label for="driving_license_document">Driving License Document</label>
+                        @if($employee->driving_license_document)
+                            <div class="mb-2">
+                                <a href="{{ asset('storage/' . $employee->driving_license_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/>
+                                    </svg>
+                                    View Current
+                                </a>
+                            </div>
+                        @endif
+                        <input id="driving_license_document" type="file" name="driving_license_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
+                        <p class="text-xs text-gray-500 mt-1">Max: 5MB (PDF, JPG, PNG)</p>
                     </div>
                 </div>
 
@@ -230,66 +328,91 @@
                 <!-- Company & Insurance Documents -->
                 <h6 class="mb-4 text-base font-bold">Company & Insurance Documents</h6>
 
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
                     <div>
                         <label for="iloe_insurance_expiry_date">ILOE Insurance Expiry</label>
                         <input id="iloe_insurance_expiry_date" type="date" name="iloe_insurance_expiry_date" class="form-input" value="{{ old('iloe_insurance_expiry_date', $employee->iloe_insurance_expiry_date?->format('Y-m-d')) }}"/>
                     </div>
-
                     <div>
-                        <label for="vtnx_trade_license_renewal_date">VTNX Trade License Renewal</label>
-                        <input id="vtnx_trade_license_renewal_date" type="date" name="vtnx_trade_license_renewal_date" class="form-input" value="{{ old('vtnx_trade_license_renewal_date', $employee->vtnx_trade_license_renewal_date?->format('Y-m-d')) }}"/>
-                    </div>
-
-                    <div>
-                        <label for="po_box_renewal_date">PO Box Renewal Date</label>
-                        <input id="po_box_renewal_date" type="date" name="po_box_renewal_date" class="form-input" value="{{ old('po_box_renewal_date', $employee->po_box_renewal_date?->format('Y-m-d')) }}"/>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
-                    <div>
-                        <label for="soe_card_renewal_date">SOE Card Renewal Date</label>
-                        <input id="soe_card_renewal_date" type="date" name="soe_card_renewal_date" class="form-input" value="{{ old('soe_card_renewal_date', $employee->soe_card_renewal_date?->format('Y-m-d')) }}"/>
-                    </div>
-
-                    <div>
-                        <label for="dcd_card_renewal_date">DCD Card Renewal Date</label>
-                        <input id="dcd_card_renewal_date" type="date" name="dcd_card_renewal_date" class="form-input" value="{{ old('dcd_card_renewal_date', $employee->dcd_card_renewal_date?->format('Y-m-d')) }}"/>
-                    </div>
-
-                    <div>
-                        <label for="voltronix_est_card_renewal_date">Voltronix EST Card Renewal</label>
-                        <input id="voltronix_est_card_renewal_date" type="date" name="voltronix_est_card_renewal_date" class="form-input" value="{{ old('voltronix_est_card_renewal_date', $employee->voltronix_est_card_renewal_date?->format('Y-m-d')) }}"/>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
-                    <div>
-                        <label for="warehouse_ejari_renewal_date">Warehouse EJARI Renewal</label>
-                        <input id="warehouse_ejari_renewal_date" type="date" name="warehouse_ejari_renewal_date" class="form-input" value="{{ old('warehouse_ejari_renewal_date', $employee->warehouse_ejari_renewal_date?->format('Y-m-d')) }}"/>
-                    </div>
-
-                    <div>
-                        <label for="camp_ejari_renewal_date">Camp EJARI Renewal Date</label>
-                        <input id="camp_ejari_renewal_date" type="date" name="camp_ejari_renewal_date" class="form-input" value="{{ old('camp_ejari_renewal_date', $employee->camp_ejari_renewal_date?->format('Y-m-d')) }}"/>
-                    </div>
-
-                    <div>
-                        <label for="workman_insurance_expiry_date">Workman Insurance Expiry</label>
-                        <input id="workman_insurance_expiry_date" type="date" name="workman_insurance_expiry_date" class="form-input" value="{{ old('workman_insurance_expiry_date', $employee->workman_insurance_expiry_date?->format('Y-m-d')) }}"/>
+                        <label for="iloe_insurance_document">ILOE Insurance Document</label>
+                        @if($employee->iloe_insurance_document)
+                            <div class="mb-2">
+                                <a href="{{ asset('storage/' . $employee->iloe_insurance_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/>
+                                    </svg>
+                                    View Current
+                                </a>
+                            </div>
+                        @endif
+                        <input id="iloe_insurance_document" type="file" name="iloe_insurance_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
+                        <p class="text-xs text-gray-500 mt-1">Max: 5MB (PDF, JPG, PNG)</p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
                     <div>
-                        <label for="etisalat_contract_expiry_date">Etisalat Contract Expiry</label>
-                        <input id="etisalat_contract_expiry_date" type="date" name="etisalat_contract_expiry_date" class="form-input" value="{{ old('etisalat_contract_expiry_date', $employee->etisalat_contract_expiry_date?->format('Y-m-d')) }}"/>
+                        <label for="soe_card_renewal_date">SOE Card Renewal Date</label>
+                        <input id="soe_card_renewal_date" type="date" name="soe_card_renewal_date" class="form-input" value="{{ old('soe_card_renewal_date', $employee->soe_card_renewal_date?->format('Y-m-d')) }}"/>
                     </div>
-
                     <div>
-                        <label for="dewa_details">DEWA Details</label>
-                        <input id="dewa_details" type="text" name="dewa_details" class="form-input" placeholder="Enter DEWA details" value="{{ old('dewa_details', $employee->dewa_details) }}"/>
+                        <label for="soe_card_document">SOE Card Document</label>
+                        @if($employee->soe_card_document)
+                            <div class="mb-2">
+                                <a href="{{ asset('storage/' . $employee->soe_card_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/>
+                                    </svg>
+                                    View Current
+                                </a>
+                            </div>
+                        @endif
+                        <input id="soe_card_document" type="file" name="soe_card_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
+                        <p class="text-xs text-gray-500 mt-1">Max: 5MB (PDF, JPG, PNG)</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
+                    <div>
+                        <label for="dcd_card_renewal_date">DCD Card Renewal Date</label>
+                        <input id="dcd_card_renewal_date" type="date" name="dcd_card_renewal_date" class="form-input" value="{{ old('dcd_card_renewal_date', $employee->dcd_card_renewal_date?->format('Y-m-d')) }}"/>
+                    </div>
+                    <div>
+                        <label for="dcd_card_document">DCD Card Document</label>
+                        @if($employee->dcd_card_document)
+                            <div class="mb-2">
+                                <a href="{{ asset('storage/' . $employee->dcd_card_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/>
+                                    </svg>
+                                    View Current
+                                </a>
+                            </div>
+                        @endif
+                        <input id="dcd_card_document" type="file" name="dcd_card_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
+                        <p class="text-xs text-gray-500 mt-1">Max: 5MB (PDF, JPG, PNG)</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
+                    <div>
+                        <label for="workman_insurance_expiry_date">Workman Insurance Expiry</label>
+                        <input id="workman_insurance_expiry_date" type="date" name="workman_insurance_expiry_date" class="form-input" value="{{ old('workman_insurance_expiry_date', $employee->workman_insurance_expiry_date?->format('Y-m-d')) }}"/>
+                    </div>
+                    <div>
+                        <label for="workman_insurance_document">Workman Insurance Document</label>
+                        @if($employee->workman_insurance_document)
+                            <div class="mb-2">
+                                <a href="{{ asset('storage/' . $employee->workman_insurance_document) }}" target="_blank" class="text-primary hover:underline text-sm flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/>
+                                    </svg>
+                                    View Current
+                                </a>
+                            </div>
+                        @endif
+                        <input id="workman_insurance_document" type="file" name="workman_insurance_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
+                        <p class="text-xs text-gray-500 mt-1">Max: 5MB (PDF, JPG, PNG)</p>
                     </div>
                 </div>
 
@@ -305,7 +428,7 @@
 
                 <!-- Action Buttons -->
                 <div class="mt-8 flex items-center justify-end gap-2">
-                    <a href="{{ route('employees.index') }}" class="btn btn-outline-danger">Cancel</a>
+                    <a href="{{ route('employees.show', $employee) }}" class="btn btn-outline-danger">Cancel</a>
                     <button type="submit" id="submitBtn" class="btn btn-success gap-2">
                         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M11 4H4C2.89543 4 2 4.89543 2 6V20C2 21.1046 2.89543 22 4 22H18C19.1046 22 20 21.1046 20 20V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -406,14 +529,6 @@
                     submitBtn.innerHTML = originalHTML;
                 });
             });
-        }
-    });
-
-    ['basic_salary', 'allowance', 'fixed_salary'].forEach(id => {
-        const element = document.getElementById(id);
-        if (element) {
-            element.addEventListener('change', calculateTotal);
-            element.addEventListener('input', calculateTotal);
         }
     });
 </script>

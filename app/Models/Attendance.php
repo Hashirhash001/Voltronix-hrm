@@ -162,4 +162,41 @@ class Attendance extends Model
         // Mon-Sat are working days
         return true;
     }
+
+    /**
+     * Format hours and minutes (e.g., "8h 30m")
+     */
+    public function getFormattedTotalHours()
+    {
+        return $this->formatHoursMinutes($this->total_hours);
+    }
+
+    /**
+     * Format overtime hours and minutes
+     */
+    public function getFormattedOvertimeHours()
+    {
+        return $this->formatHoursMinutes($this->overtime_hours);
+    }
+
+    /**
+     * Helper to format decimal hours to h m format
+     */
+    private function formatHoursMinutes($decimalHours)
+    {
+        if (!$decimalHours || $decimalHours <= 0) {
+            return '0h 0m';
+        }
+
+        $hours = intval($decimalHours);
+        $minutes = round(($decimalHours - $hours) * 60);
+
+        // Handle case where minutes round to 60
+        if ($minutes == 60) {
+            $hours++;
+            $minutes = 0;
+        }
+
+        return "{$hours}h {$minutes}m";
+    }
 }

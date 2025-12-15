@@ -24,237 +24,276 @@
         </li>
     </ul>
 
-    <!-- Statistics Cards -->
     <div class="pt-5">
+        <!-- Main Statistics Cards -->
         <div class="mb-6 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
             <!-- Total Employees -->
-            <div class="panel h-full sm:col-span-2 xl:col-span-1">
-                <div class="flex items-center">
-                    <div class="shrink-0 rounded-full bg-primary/10 p-3 text-primary ring-2 ring-primary/30">
-                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <div class="panel h-full">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-3xl font-bold text-primary">{{ $totalEmployees }}</p>
+                        <h5 class="text-sm font-semibold text-[#506690] mt-1">Total Employees</h5>
+                        <p class="text-xs text-white-dark mt-1">{{ $activeEmployees }} Active • {{ $inactiveEmployees }} Inactive</p>
+                    </div>
+                    <div class="rounded-full bg-primary/10 p-3 ring-2 ring-primary/30">
+                        <svg class="h-8 w-8 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <circle opacity="0.5" cx="15" cy="6" r="3" fill="currentColor"/>
                             <ellipse opacity="0.5" cx="16" cy="17" rx="5" ry="3" fill="currentColor"/>
                             <circle cx="9.00098" cy="6" r="4" fill="currentColor"/>
                             <ellipse cx="9.00098" cy="17.001" rx="7" ry="4" fill="currentColor"/>
                         </svg>
                     </div>
-                    <div class="ltr:ml-3 rtl:mr-3">
-                        <p class="text-xl font-bold text-primary">{{ $totalEmployees }}</p>
-                        <h5 class="text-xs text-[#506690]">Total Employees</h5>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Active Employees -->
-            <div class="panel h-full sm:col-span-2 xl:col-span-1">
-                <div class="flex items-center">
-                    <div class="shrink-0 rounded-full bg-success/10 p-3 text-success ring-2 ring-success/30">
-                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor" opacity="0.5"/>
-                            <path d="M8 12L10.5 14.5L16 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
-                    <div class="ltr:ml-3 rtl:mr-3">
-                        <p class="text-xl font-bold text-success">{{ $activeEmployees }}</p>
-                        <h5 class="text-xs text-[#506690]">Active Employees</h5>
-                    </div>
                 </div>
             </div>
 
             <!-- Today's Attendance -->
-            <div class="panel h-full sm:col-span-2 xl:col-span-1">
-                <div class="flex items-center">
-                    <div class="shrink-0 rounded-full bg-info/10 p-3 text-info ring-2 ring-info/30">
-                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M2 12C2 8.22876 2 6.34315 3.17157 5.17157C4.34315 4 6.22876 4 10 4H14C17.7712 4 19.6569 4 20.8284 5.17157C22 6.34315 22 8.22876 22 12V14C22 17.7712 22 19.6569 20.8284 20.8284C19.6569 22 17.7712 22 14 22H10C6.22876 22 4.34315 22 3.17157 20.8284C2 19.6569 2 17.7712 2 14V12Z" stroke="currentColor" stroke-width="1.5"/>
-                        </svg>
+            <div class="panel h-full">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-3xl font-bold text-success">{{ $todayPresent }}</p>
+                        <h5 class="text-sm font-semibold text-[#506690] mt-1">Present Today</h5>
+                        <p class="text-xs text-white-dark mt-1">{{ $todayAbsent }} Absent • {{ $todayHalfDay }} Half Day • {{ $todayLeave }} Leave</p>
                     </div>
-                    <div class="ltr:ml-3 rtl:mr-3">
-                        <p class="text-xl font-bold text-info">{{ $todayPresent }}/{{ $todayAttendance }}</p>
-                        <h5 class="text-xs text-[#506690]">Today's Attendance</h5>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Overtime This Month -->
-            <div class="panel h-full sm:col-span-2 xl:col-span-1">
-                <div class="flex items-center">
-                    <div class="shrink-0 rounded-full bg-warning/10 p-3 text-warning ring-2 ring-warning/30">
-                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
-                            <path d="M12 8V12L14.5 14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
-                    <div class="ltr:ml-3 rtl:mr-3">
-                        <p class="text-xl font-bold text-warning">{{ number_format($overtimeThisMonth, 1) }}</p>
-                        <h5 class="text-xs text-[#506690]">Overtime Hours</h5>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Document Expiry Alerts -->
-        <div class="panel h-full">
-            <div class="mb-5 flex items-center justify-between">
-                <h5 class="text-lg font-semibold dark:text-white-light">Document Expiry Alerts</h5>
-                <a href="{{ route('document-expiry.index') }}" class="btn btn-sm btn-primary gap-2">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
-                    </svg>
-                    View All
-                </a>
-            </div>
-
-            <div class="space-y-4">
-                @forelse($expiringDocuments->take(5) as $alert)
-                    <div class="flex items-center justify-between p-3 rounded-lg border border-white-light dark:border-[#1b2e4b]">
-                        <div class="flex-1">
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="font-semibold">{{ $alert['employee']->employee_name }}</span>
-                                <span class="badge badge-outline-primary text-xs">{{ $alert['employee']->staff_number }}</span>
-                            </div>
-                            <p class="text-xs text-white-dark">{{ $alert['document_name'] }} expires on {{ $alert['expiry_date']->format('d M Y') }}</p>
-                        </div>
-                        <div class="text-right">
-                            <span class="badge bg-{{ $alert['status_class'] }}">{{ $alert['status_label'] }}</span>
-                            <p class="text-xs text-white-dark mt-1">{{ abs($alert['days_until_expiry']) }} days{{ $alert['days_until_expiry'] < 0 ? ' ago' : '' }}</p>
-                        </div>
-                    </div>
-                @empty
-                    <div class="text-center py-8">
-                        <svg class="mx-auto h-12 w-12 text-success mb-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+                    <div class="rounded-full bg-success/10 p-3 ring-2 ring-success/30">
+                        <svg class="h-8 w-8 text-success" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor" opacity="0.5"/>
                             <path d="M8 12L10.5 14.5L16 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
-                        <p class="text-sm text-white-dark">All documents are up to date</p>
                     </div>
-                @endforelse
+                </div>
+            </div>
+
+            <!-- Entities & Vehicles -->
+            <div class="panel h-full">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-3xl font-bold text-info">{{ $totalEntities + $totalVehicles }}</p>
+                        <h5 class="text-sm font-semibold text-[#506690] mt-1">Total Assets</h5>
+                        <p class="text-xs text-white-dark mt-1">{{ $totalEntities }} Entities • {{ $totalVehicles }} Vehicles</p>
+                    </div>
+                    <div class="rounded-full bg-info/10 p-3 ring-2 ring-info/30">
+                        <svg class="h-8 w-8 text-info" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" fill="currentColor" opacity="0.5"/>
+                            <polyline points="13 2 13 9 20 9" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Document Alerts -->
+            <div class="panel h-full">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-3xl font-bold text-warning">{{ $expiringDocuments->count() }}</p>
+                        <h5 class="text-sm font-semibold text-[#506690] mt-1">Document Alerts</h5>
+                        <p class="text-xs text-white-dark mt-1">Expiring within 90 days</p>
+                    </div>
+                    <div class="rounded-full bg-warning/10 p-3 ring-2 ring-warning/30">
+                        <svg class="h-8 w-8 text-warning" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2L2 20h20L12 2z" fill="currentColor" opacity="0.5"/>
+                            <path d="M12 9V13M12 17H12.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Employees with Overtime -->
-        @if($topOvertimeEmployees && $topOvertimeEmployees->count() > 0)
-            <div class="panel mt-6">
-                <div class="mb-5 flex items-center justify-between">
-                    <h5 class="text-lg font-semibold dark:text-white-light">
-                        Employees with Overtime This Month
-                        <span class="badge bg-warning ml-2">{{ $topOvertimeEmployees->count() }}</span>
-                    </h5>
-                </div>
-
-                <div class="table-responsive">
-                    <table class="table-striped">
-                        <thead>
-                            <tr>
-                                <th>Staff Number</th>
-                                <th>Employee Name</th>
-                                <th>Designation</th>
-                                <th>Overtime Hours</th>
-                                <th class="text-center">Indicator</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($topOvertimeEmployees as $employee)
-                                <tr>
-                                    <td>{{ $employee->staff_number }}</td>
-                                    <td>
-                                        <a href="{{ route('employees.show', $employee->id) }}" class="text-primary hover:underline">
-                                            {{ $employee->employee_name }}
-                                        </a>
-                                    </td>
-                                    <td>{{ $employee->designation }}</td>
-                                    <td>
-                                        <span class="font-semibold">{{ number_format($employee->total_overtime, 1) }} hrs</span>
-                                    </td>
-                                    <td class="text-center">
-                                        @if($employee->total_overtime > 40)
-                                            <span class="badge bg-danger">High</span>
-                                        @elseif($employee->total_overtime > 20)
-                                            <span class="badge bg-warning">Medium</span>
-                                        @else
-                                            <span class="badge bg-info">Low</span>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+        <!-- Monthly Attendance Performance -->
+        <div class="mb-6 panel">
+            <div class="mb-5 flex items-center justify-between">
+                <div>
+                    <h5 class="text-lg font-semibold dark:text-white-light">Monthly Attendance Performance</h5>
+                    <p class="text-xs text-white-dark mt-1">{{ now()->format('F Y') }} • {{ $monthlyStats['working_days'] }} working days • {{ $monthlyStats['active_employees'] }} employees</p>
                 </div>
             </div>
-        @endif
 
-        <!-- Attendance Analytics -->
-        @if($attendanceAnalytics)
-            <div class="panel mt-6">
-                <div class="mb-5 flex items-center justify-between">
-                    <h5 class="text-lg font-semibold dark:text-white-light">Attendance Analytics - This Month</h5>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <!-- Attendance Rate -->
+                <div class="rounded-lg border border-white-light p-4 dark:border-[#1b2e4b]">
+                    <div class="flex items-center justify-between mb-3">
+                        <h6 class="text-xs font-semibold text-white-dark uppercase">Attendance Rate</h6>
+                        <div class="rounded-full p-2 {{ $monthlyStats['attendance_rate'] >= 95 ? 'bg-success/10' : ($monthlyStats['attendance_rate'] >= 85 ? 'bg-warning/10' : 'bg-danger/10') }}">
+                            <svg class="h-5 w-5 {{ $monthlyStats['attendance_rate'] >= 95 ? 'text-success' : ($monthlyStats['attendance_rate'] >= 85 ? 'text-warning' : 'text-danger') }}" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" opacity="0.5"/>
+                                <path d="M8 12L10.5 14.5L16 9" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <p class="text-3xl font-bold {{ $monthlyStats['attendance_rate'] >= 95 ? 'text-success' : ($monthlyStats['attendance_rate'] >= 85 ? 'text-warning' : 'text-danger') }}">
+                            {{ $monthlyStats['attendance_rate'] }}%
+                        </p>
+                        <p class="text-xs text-white-dark mb-1">Target: 95%</p>
+                    </div>
+                    <p class="text-xs text-white-dark mt-2">{{ $monthlyStats['monthly_present'] }} / {{ $monthlyStats['expected_attendance'] }} present</p>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    <div class="rounded-lg border border-white-light p-4 dark:border-[#1b2e4b]">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h6 class="text-xs text-white-dark">Present</h6>
-                                <p class="text-2xl font-semibold text-success">{{ $attendanceAnalytics['present'] ?? 0 }}</p>
-                            </div>
-                            <div class="rounded-full bg-success/10 p-2">
-                                <svg class="h-6 w-6 text-success" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor" opacity="0.5"/>
-                                    <path d="M8 12L10.5 14.5L16 9" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                            </div>
+                <!-- Absenteeism Rate -->
+                <div class="rounded-lg border border-white-light p-4 dark:border-[#1b2e4b]">
+                    <div class="flex items-center justify-between mb-3">
+                        <h6 class="text-xs font-semibold text-white-dark uppercase">Absenteeism Rate</h6>
+                        <div class="rounded-full bg-danger/10 p-2">
+                            <svg class="h-5 w-5 text-danger" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="12" r="10" opacity="0.5"/>
+                                <path d="M14.5 9.5L9.5 14.5M9.5 9.5L14.5 14.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+                            </svg>
                         </div>
                     </div>
+                    <div class="flex items-end gap-2">
+                        <p class="text-3xl font-bold text-danger">{{ $monthlyStats['absenteeism_rate'] }}%</p>
+                        <p class="text-xs text-white-dark mb-1">{{ $monthlyStats['monthly_absent'] }} days</p>
+                    </div>
+                    <p class="text-xs text-white-dark mt-2">Industry avg: 2-3%</p>
+                </div>
 
-                    <div class="rounded-lg border border-white-light p-4 dark:border-[#1b2e4b]">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h6 class="text-xs text-white-dark">Absent</h6>
-                                <p class="text-2xl font-semibold text-danger">{{ $attendanceAnalytics['absent'] ?? 0 }}</p>
-                            </div>
-                            <div class="rounded-full bg-danger/10 p-2">
-                                <svg class="h-6 w-6 text-danger" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <circle opacity="0.5" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
-                                    <path d="M14.5 9.50002L9.5 14.5M9.49998 9.5L14.5 14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                                </svg>
-                            </div>
+                <!-- Planned Leave -->
+                <div class="rounded-lg border border-white-light p-4 dark:border-[#1b2e4b]">
+                    <div class="flex items-center justify-between mb-3">
+                        <h6 class="text-xs font-semibold text-white-dark uppercase">Planned Leave</h6>
+                        <div class="rounded-full bg-warning/10 p-2">
+                            <svg class="h-5 w-5 text-warning" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 2V5M16 2V5M3.5 9.09H20.5M21 8.5V17C21 20 19.5 22 16 22H8C4.5 22 3 20 3 17V8.5C3 5.5 4.5 3.5 8 3.5H16C19.5 3.5 21 5.5 21 8.5Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
                         </div>
                     </div>
+                    <div class="flex items-end gap-2">
+                        <p class="text-3xl font-bold text-warning">{{ $monthlyStats['monthly_leave'] }}</p>
+                        <p class="text-xs text-white-dark mb-1">days taken</p>
+                    </div>
+                    <p class="text-xs text-white-dark mt-2">{{ $monthlyStats['monthly_half_day'] }} half days</p>
+                </div>
 
-                    <div class="rounded-lg border border-white-light p-4 dark:border-[#1b2e4b]">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h6 class="text-xs text-white-dark">Leave</h6>
-                                <p class="text-2xl font-semibold text-warning">{{ $attendanceAnalytics['leave'] ?? 0 }}</p>
-                            </div>
-                            <div class="rounded-full bg-warning/10 p-2">
-                                <svg class="h-6 w-6 text-warning" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M12 7V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                                    <circle cx="12" cy="16" r="1" fill="currentColor"/>
-                                    <path opacity="0.5" d="M7.84308 3.80211C9.8718 2.6007 10.8862 2 12 2C13.1138 2 14.1282 2.6007 16.1569 3.80211L16.8431 4.20846C18.8718 5.40987 19.8862 6.01057 20.4431 7C21 7.98943 21 9.19084 21 11.5937V12.4063C21 14.8092 21 16.0106 20.4431 17C19.8862 17.9894 18.8718 18.5901 16.8431 19.7915L16.1569 20.1979C14.1282 21.3993 13.1138 22 12 22C10.8862 22 9.8718 21.3993 7.84308 20.1979L7.15692 19.7915C5.1282 18.5901 4.11384 17.9894 3.55692 17C3 16.0106 3 14.8092 3 12.4063V11.5937C3 9.19084 3 7.98943 3.55692 7C4.11384 6.01057 5.1282 5.40987 7.15692 4.20846L7.84308 3.80211Z" fill="currentColor"/>
-                                </svg>
-                            </div>
+                <!-- Average Work Hours -->
+                <div class="rounded-lg border border-white-light p-4 dark:border-[#1b2e4b]">
+                    <div class="flex items-center justify-between mb-3">
+                        <h6 class="text-xs font-semibold text-white-dark uppercase">Avg Work Hours</h6>
+                        <div class="rounded-full bg-info/10 p-2">
+                            <svg class="h-5 w-5 text-info" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+                                <path d="M12 8V12L14.5 14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
                         </div>
                     </div>
-
-                    <div class="rounded-lg border border-white-light p-4 dark:border-[#1b2e4b]">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h6 class="text-xs text-white-dark">Avg Hours</h6>
-                                <p class="text-2xl font-semibold text-info">{{ number_format($attendanceAnalytics['average_hours'] ?? 0, 1) }}</p>
-                            </div>
-                            <div class="rounded-full bg-info/10 p-2">
-                                <svg class="h-6 w-6 text-info" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
-                                    <path d="M12 8V12L14.5 14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                            </div>
-                        </div>
+                    <div class="flex items-end gap-2">
+                        <p class="text-3xl font-bold text-info">{{ $monthlyStats['average_hours'] }}</p>
+                        <p class="text-xs text-white-dark mb-1">hrs/day</p>
                     </div>
+                    <p class="text-xs text-white-dark mt-2">Standard: 8 hrs/day</p>
                 </div>
             </div>
-        @endif
+
+            <!-- Performance Indicator Bar -->
+            <div class="mt-4 rounded-lg bg-gray-50 dark:bg-[#1b2e4b] p-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-white-dark">Overall Performance</span>
+                    <span class="text-xs font-semibold {{ $monthlyStats['attendance_rate'] >= 95 ? 'text-success' : ($monthlyStats['attendance_rate'] >= 85 ? 'text-warning' : 'text-danger') }}">
+                        {{ $monthlyStats['attendance_rate'] >= 95 ? 'Excellent' : ($monthlyStats['attendance_rate'] >= 85 ? 'Good' : 'Needs Attention') }}
+                    </span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+                    <div class="h-2 rounded-full transition-all {{ $monthlyStats['attendance_rate'] >= 95 ? 'bg-success' : ($monthlyStats['attendance_rate'] >= 85 ? 'bg-warning' : 'bg-danger') }}"
+                         style="width: {{ min($monthlyStats['attendance_rate'], 100) }}%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Document Alerts & Recent Attendance -->
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <!-- Document Expiry Alerts -->
+            <div class="panel h-full">
+                <div class="mb-5 flex items-center justify-between">
+                    <h5 class="text-lg font-semibold dark:text-white-light">Document Expiry Alerts</h5>
+                    <a href="{{ route('document-expiry.index') }}" class="btn btn-sm btn-primary gap-2">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                        View All
+                    </a>
+                </div>
+
+                <div class="space-y-3 max-h-96 overflow-y-auto">
+                    @forelse($expiringDocuments as $alert)
+                        <div class="flex items-center justify-between p-3 rounded-lg border border-white-light dark:border-[#1b2e4b] hover:shadow-md transition-shadow">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="badge badge-outline-secondary text-xs">{{ $alert['category'] }}</span>
+                                    <span class="font-semibold text-sm">{{ $alert['name'] }}</span>
+                                    @if($alert['identifier'])
+                                        <span class="text-xs text-white-dark">{{ $alert['identifier'] }}</span>
+                                    @endif
+                                </div>
+                                <p class="text-xs text-white-dark">{{ $alert['document_name'] }} • {{ $alert['expiry_date']->format('d M Y') }}</p>
+                            </div>
+                            <div class="text-right ml-3">
+                                <span class="badge bg-{{ $alert['status_class'] }} whitespace-nowrap">{{ $alert['status_label'] }}</span>
+                                <p class="text-xs text-white-dark mt-1 whitespace-nowrap">
+                                    @if($alert['days_until_expiry'] < 0)
+                                        {{ abs($alert['days_until_expiry']) }} day{{ abs($alert['days_until_expiry']) != 1 ? 's' : '' }} ago
+                                    @else
+                                        {{ $alert['days_until_expiry'] }} day{{ $alert['days_until_expiry'] != 1 ? 's' : '' }}
+                                    @endif
+                                </p>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="text-center py-8">
+                            <svg class="mx-auto h-12 w-12 text-success mb-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+                                <path d="M8 12L10.5 14.5L16 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <p class="text-sm text-white-dark">All documents are up to date</p>
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+
+            <!-- Recent Attendance -->
+            <div class="panel h-full">
+                <div class="mb-5 flex items-center justify-between">
+                    <h5 class="text-lg font-semibold dark:text-white-light">Recent Attendance</h5>
+                    <a href="{{ route('attendances.index') }}" class="btn btn-sm btn-outline-primary gap-2">
+                        View All
+                    </a>
+                </div>
+
+                <div class="space-y-3 max-h-96 overflow-y-auto">
+                    @forelse($recentAttendances as $attendance)
+                        <div class="flex items-center justify-between p-3 rounded-lg border border-white-light dark:border-[#1b2e4b] hover:shadow-md transition-shadow">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="font-semibold text-sm">{{ $attendance->employee->employee_name ?? 'N/A' }}</span>
+                                    <span class="text-xs text-white-dark">{{ $attendance->staff_number }}</span>
+                                </div>
+                                <p class="text-xs text-white-dark">
+                                    {{ $attendance->attendance_date->format('d M Y') }} •
+                                    {{ $attendance->check_in_time ? $attendance->check_in_time->format('h:i A') : '-' }} -
+                                    {{ $attendance->check_out_time ? $attendance->check_out_time->format('h:i A') : '-' }}
+                                </p>
+                            </div>
+                            <div class="text-right ml-3">
+                                <span class="badge whitespace-nowrap
+                                    @if($attendance->status === 'present') bg-success
+                                    @elseif($attendance->status === 'absent') bg-danger
+                                    @elseif($attendance->status === 'half_day') bg-secondary
+                                    @elseif($attendance->status === 'leave') bg-warning
+                                    @else bg-info
+                                    @endif">
+                                    {{ ucfirst(str_replace('_', ' ', $attendance->status)) }}
+                                </span>
+                                @if($attendance->total_hours > 0)
+                                    <p class="text-xs text-white-dark mt-1">{{ number_format($attendance->total_hours, 1) }}h</p>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <div class="text-center py-8">
+                            <p class="text-sm text-white-dark">No recent attendance records</p>
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 @endsection

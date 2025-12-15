@@ -3,8 +3,10 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
+use App\Http\Controllers\EntityController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\DashboardController;
@@ -12,6 +14,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DocumentExpiryController;
 use App\Http\Controllers\EmployeeImportController;
+use App\Http\Controllers\EmployeeDocumentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -67,6 +70,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports-export', [ReportController::class, 'export'])->name('reports.export');
     Route::get('/reports/employee/{employee}', [ReportController::class, 'employeeDetail'])->name('reports.employee-detail');
     Route::get('/reports/employee-export', [ReportController::class, 'employeeExport'])->name('reports.employee-export');
+
+    // Entities Routes
+    Route::resource('entities', EntityController::class);
+
+    // Vehicles Routes
+    Route::resource('vehicles', VehicleController::class);
 
     // Profile Routes
     Route::prefix('profile')->name('profile.')->group(function () {

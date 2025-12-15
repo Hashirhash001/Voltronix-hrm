@@ -18,7 +18,7 @@ class ReportController extends Controller
             ->get();
 
         $startDate = $request->start_date ?? Carbon::now()->startOfMonth()->format('Y-m-d');
-        $endDate = $request->end_date ?? Carbon::now()->endOfMonth()->format('Y-m-d');
+        $endDate = $request->end_date ?? Carbon::today()->format('Y-m-d');
         $employeeId = $request->employee_id;
 
         $reportData = null;
@@ -49,7 +49,7 @@ class ReportController extends Controller
         $employees = $employeeQuery->get();
         $activeEmployeeCount = $employees->count();
 
-        // 2) Attendance records in range for those employees
+        // 2) Attendance records in range
         $attendanceQuery = Attendance::with('employee.user')
             ->whereBetween('attendance_date', [$startDate, $endDate])
             ->whereHas('employee', function ($q) {
@@ -67,9 +67,9 @@ class ReportController extends Controller
         $attendanceByEmployee = $attendances->groupBy('employee_id');
 
         // 3) Working days in range (Mon–Sat)
-        $totalWorkingDays = $this->calculateWorkingDays($startDate, $endDate); // already Mon–Sat only
+        $totalWorkingDays = $this->calculateWorkingDays($startDate, $endDate);
 
-        // >>> ADD THIS GUARD HERE <<<
+        // Guard against zero working days or employees
         if ($totalWorkingDays <= 0 || $activeEmployeeCount <= 0) {
             return [
                 'start_date'            => $startDate,
@@ -92,18 +92,24 @@ class ReportController extends Controller
                     'total_overtime_hours' => 0,
                     'expected_slots'       => 0,
                     'actual_slots'         => 0,
+                    'total_overtime_hours_formatted' => '0h 00m',
                 ],
+                'total_required_hours_formatted' => '0h 00m',
+                'total_actual_hours_formatted'   => '0h 00m',
             ];
         }
 
         $overallRequiredHours = $totalWorkingDays * 10 * $activeEmployeeCount;
 
-        // Pre-build list of working dates in range
+        // Pre-build list of working dates UP TO TODAY ONLY
         $workingDates = [];
         $cursor = Carbon::parse($startDate);
         $end = Carbon::parse($endDate);
+        $today = Carbon::today(); // Don't mark future dates as absent
+
         while ($cursor->lte($end)) {
-            if ($cursor->dayOfWeek !== Carbon::SUNDAY) {
+            // Only include working dates up to today
+            if ($cursor->dayOfWeek !== Carbon::SUNDAY && $cursor->lte($today)) {
                 $workingDates[] = $cursor->format('Y-m-d');
             }
             $cursor->addDay();
@@ -129,7 +135,7 @@ class ReportController extends Controller
             foreach ($empAttendances as $att) {
                 $d = $att->attendance_date->format('Y-m-d');
                 if (!in_array($d, $workingDates, true)) {
-                    continue; // ignore non‑working days
+                    continue; // ignore non‑working or future days
                 }
                 $statusByDate[$d] = $att->status;
 
@@ -169,7 +175,7 @@ class ReportController extends Controller
                         $absentDates[] = $d;
                         break;
                     default:
-                        // No record at all for this working day -> count as Absent
+                        // No record for this past working day -> count as Absent
                         $absentDates[] = $d;
                         break;
                 }
@@ -226,18 +232,24 @@ class ReportController extends Controller
                 'required_work_hours'   => $requiredWorkHours,
                 'attendance_percentage' => $attendancePercentage,
                 'work_efficiency'       => $workEfficiency,
+
+                // Add formatted versions for hours:minutes display
+                'total_hours_formatted'    => $this->formatHoursMinutes($empTotalHours),
+                'regular_hours_formatted'  => $this->formatHoursMinutes($empRegularHours),
+                'overtime_hours_formatted' => $this->formatHoursMinutes($empOvertimeHours),
+                'required_hours_formatted' => $this->formatHoursMinutes($requiredWorkHours),
             ];
         }
 
         // Sort employees by efficiency
         usort($employeeReports, fn($a, $b) => $b['work_efficiency'] <=> $a['work_efficiency']);
 
-        // Team efficiency = average of individual efficiencies
+        // Team efficiency
         $teamEfficiency = $activeEmployeeCount > 0
             ? round(collect($employeeReports)->avg('work_efficiency'), 2)
             : 0;
 
-        // Verification: totals must match working slots
+        // Verification
         $expectedSlots = $totalWorkingDays * $activeEmployeeCount;
         $actualSlots   = $totalPresent + $totalLeave + $totalAbsent + $totalHalfDay + $totalHoliday;
 
@@ -274,10 +286,19 @@ class ReportController extends Controller
                 'total_overtime_hours' => round($totalOvertimeHours, 2),
                 'expected_slots'       => $expectedSlots,
                 'actual_slots'         => $actualSlots,
+
+                // Add formatted version
+                'total_overtime_hours_formatted' => $this->formatHoursMinutes($totalOvertimeHours),
             ],
+            // Add formatted versions for display
+            'total_required_hours_formatted' => $this->formatHoursMinutes($overallRequiredHours),
+            'total_actual_hours_formatted'   => $this->formatHoursMinutes($totalActualHours),
         ];
     }
 
+    /**
+     * Calculate working days between two dates (Monday to Saturday, excluding Sunday)
+     */
     private function calculateWorkingDays($startDate, $endDate)
     {
         $start = Carbon::parse($startDate);
@@ -294,6 +315,25 @@ class ReportController extends Controller
         return $workingDays;
     }
 
+    /**
+     * Convert decimal hours to hours:minutes format
+     */
+    private function formatHoursMinutes($decimalHours)
+    {
+        $hours = floor($decimalHours);
+        $minutes = round(($decimalHours - $hours) * 60);
+        return sprintf('%dh %02dm', $hours, $minutes);
+    }
+
+    /**
+     * Calculate work efficiency score (0-100%)
+     *
+     * Weighted criteria:
+     * - Attendance Rate: 40% (present days / working days)
+     * - Work Hours Completion: 30% (actual hours / required hours)
+     * - Punctuality: 20% (on-time arrivals / present days)
+     * - Absence Penalty: 10% (deduct 2 points per absence, max 10 points)
+     */
     private function calculateWorkEfficiency($data)
     {
         $workingDays   = (int) ($data['total_working_days']   ?? 0);
@@ -350,36 +390,36 @@ class ReportController extends Controller
         $totalWorkingDays = $this->calculateWorkingDays($startDate, $endDate);
         $requiredWorkHours = $totalWorkingDays * 10;
 
-        // FIXED: Only count late when status is present
+        // Only count late when status is present
         $lateCount = $attendances->where('is_late', true)
                                  ->where('status', 'present')
                                  ->count();
 
         $stats = [
-            'total_working_days' => $totalWorkingDays,
-            'total_days' => $attendances->count(),
-            'present' => $attendances->where('status', 'present')->count(),
-            'absent' => $attendances->where('status', 'absent')->count(),
-            'half_day' => $attendances->where('status', 'half_day')->count(),
-            'leave' => $attendances->where('status', 'leave')->count(),
-            'holiday' => $attendances->where('status', 'holiday')->count(),
-            'total_hours' => $attendances->sum('total_hours'),
-            'regular_hours' => $attendances->sum('regular_hours'),
-            'overtime_hours' => $attendances->sum('overtime_hours'),
-            'required_work_hours' => $requiredWorkHours,
-            'late_count' => $lateCount, // FIXED
+            'total_working_days'    => $totalWorkingDays,
+            'total_days'            => $attendances->count(),
+            'present'               => $attendances->where('status', 'present')->count(),
+            'absent'                => $attendances->where('status', 'absent')->count(),
+            'half_day'              => $attendances->where('status', 'half_day')->count(),
+            'leave'                 => $attendances->where('status', 'leave')->count(),
+            'holiday'               => $attendances->where('status', 'holiday')->count(),
+            'total_hours'           => $attendances->sum('total_hours'),
+            'regular_hours'         => $attendances->sum('regular_hours'),
+            'overtime_hours'        => $attendances->sum('overtime_hours'),
+            'required_work_hours'   => $requiredWorkHours,
+            'late_count'            => $lateCount,
             'attendance_percentage' => $totalWorkingDays > 0
                 ? round(($attendances->where('status', 'present')->count() / $totalWorkingDays) * 100, 2)
                 : 0,
         ];
 
         $stats['work_efficiency'] = $this->calculateWorkEfficiency([
-            'total_working_days' => $totalWorkingDays,
-            'present_count' => $stats['present'],
-            'required_work_hours' => $requiredWorkHours,
-            'total_hours' => $stats['total_hours'],
-            'late_count' => $stats['late_count'],
-            'absent_count' => $stats['absent'],
+            'total_working_days'   => $totalWorkingDays,
+            'present_count'        => $stats['present'],
+            'required_work_hours'  => $requiredWorkHours,
+            'total_hours'          => $stats['total_hours'],
+            'late_count'           => $stats['late_count'],
+            'absent_count'         => $stats['absent'],
         ]);
 
         return view('reports.employee-detail', compact('employee', 'attendances', 'stats', 'startDate', 'endDate'));
@@ -389,9 +429,9 @@ class ReportController extends Controller
     {
         $request->validate([
             'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
+            'end_date'   => 'required|date|after_or_equal:start_date',
             'employee_id' => 'nullable|exists:employees,id',
-            'format' => 'required|in:csv,pdf'
+            'format'     => 'required|in:csv,pdf'
         ]);
 
         $reportData = $this->generateReport(
@@ -434,9 +474,9 @@ class ReportController extends Controller
                 $reportData['total_approved_leaves'],
                 $reportData['total_unapproved_absences'],
                 $reportData['total_late_entries'],
-                number_format($reportData['total_required_hours'], 2) . 'h',
-                number_format($reportData['total_actual_hours'], 2) . 'h',
-                number_format($reportData['summary']['total_overtime_hours'], 2) . 'h', // FIXED
+                $reportData['total_required_hours_formatted'],
+                $reportData['total_actual_hours_formatted'],
+                $reportData['summary']['total_overtime_hours_formatted'],
             ]);
             fputcsv($file, []);
 
@@ -455,12 +495,6 @@ class ReportController extends Controller
             ]);
 
             foreach ($reportData['employee_reports'] as $report) {
-                $hours = floor($report['total_hours']);
-                $minutes = round(($report['total_hours'] - $hours) * 60);
-
-                $otHours = floor($report['overtime_hours']);
-                $otMinutes = round(($report['overtime_hours'] - $otHours) * 60);
-
                 fputcsv($file, [
                     $report['employee']->staff_number,
                     $report['employee']->employee_name,
@@ -470,8 +504,8 @@ class ReportController extends Controller
                     $report['absent_count'],
                     $report['leave_count'],
                     $report['late_count'],
-                    $hours . 'h ' . $minutes . 'm',
-                    $otHours . 'h ' . $otMinutes . 'm',
+                    $report['total_hours_formatted'],
+                    $report['overtime_hours_formatted'],
                 ]);
             }
 
@@ -483,6 +517,9 @@ class ReportController extends Controller
 
     private function exportToPdf($reportData)
     {
+        // Add total_records to the data
+        $reportData['total_records'] = count($reportData['employee_reports'] ?? []);
+
         $pdf = Pdf::loadView('reports.analytics-pdf', $reportData)
                 ->setPaper('a4', 'landscape')
                 ->setOption('margin-top', 5)
@@ -498,10 +535,10 @@ class ReportController extends Controller
     public function employeeExport(Request $request)
     {
         $request->validate([
-            'employee' => 'required|exists:employees,id',
+            'employee'   => 'required|exists:employees,id',
             'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
-            'format' => 'required|in:csv,pdf'
+            'end_date'   => 'required|date|after_or_equal:start_date',
+            'format'     => 'required|in:csv,pdf'
         ]);
 
         $employee = Employee::findOrFail($request->employee);
@@ -516,36 +553,36 @@ class ReportController extends Controller
         $totalWorkingDays = $this->calculateWorkingDays($startDate, $endDate);
         $requiredWorkHours = $totalWorkingDays * 10;
 
-        // FIXED: Only count late when status is present
+        // Only count late when status is present
         $lateCount = $attendances->where('is_late', true)
                                  ->where('status', 'present')
                                  ->count();
 
         $stats = [
-            'total_working_days' => $totalWorkingDays,
-            'total_days' => $attendances->count(),
-            'present' => $attendances->where('status', 'present')->count(),
-            'absent' => $attendances->where('status', 'absent')->count(),
-            'half_day' => $attendances->where('status', 'half_day')->count(),
-            'leave' => $attendances->where('status', 'leave')->count(),
-            'holiday' => $attendances->where('status', 'holiday')->count(),
-            'total_hours' => $attendances->sum('total_hours'),
-            'regular_hours' => $attendances->sum('regular_hours'),
-            'overtime_hours' => $attendances->sum('overtime_hours'),
-            'required_work_hours' => $requiredWorkHours,
-            'late_count' => $lateCount, // FIXED
+            'total_working_days'    => $totalWorkingDays,
+            'total_days'            => $attendances->count(),
+            'present'               => $attendances->where('status', 'present')->count(),
+            'absent'                => $attendances->where('status', 'absent')->count(),
+            'half_day'              => $attendances->where('status', 'half_day')->count(),
+            'leave'                 => $attendances->where('status', 'leave')->count(),
+            'holiday'               => $attendances->where('status', 'holiday')->count(),
+            'total_hours'           => $attendances->sum('total_hours'),
+            'regular_hours'         => $attendances->sum('regular_hours'),
+            'overtime_hours'        => $attendances->sum('overtime_hours'),
+            'required_work_hours'   => $requiredWorkHours,
+            'late_count'            => $lateCount,
             'attendance_percentage' => $totalWorkingDays > 0
                 ? round(($attendances->where('status', 'present')->count() / $totalWorkingDays) * 100, 2)
                 : 0,
         ];
 
         $stats['work_efficiency'] = $this->calculateWorkEfficiency([
-            'total_working_days' => $totalWorkingDays,
-            'present_count' => $stats['present'],
-            'required_work_hours' => $requiredWorkHours,
-            'total_hours' => $stats['total_hours'],
-            'late_count' => $stats['late_count'],
-            'absent_count' => $stats['absent'],
+            'total_working_days'   => $totalWorkingDays,
+            'present_count'        => $stats['present'],
+            'required_work_hours'  => $requiredWorkHours,
+            'total_hours'          => $stats['total_hours'],
+            'late_count'           => $stats['late_count'],
+            'absent_count'         => $stats['absent'],
         ]);
 
         if ($request->format === 'csv') {
@@ -579,6 +616,11 @@ class ReportController extends Controller
                 'Attendance %', 'Present', 'Absent', 'Half Day', 'Leave', 'Late Entries',
                 'Total Hours', 'Required Hours', 'Overtime Hours', 'Work Efficiency'
             ]);
+
+            $totalHoursFormatted = $this->formatHoursMinutes($stats['total_hours']);
+            $requiredHoursFormatted = $this->formatHoursMinutes($stats['required_work_hours']);
+            $overtimeHoursFormatted = $this->formatHoursMinutes($stats['overtime_hours']);
+
             fputcsv($file, [
                 $stats['attendance_percentage'] . '%',
                 $stats['present'],
@@ -586,9 +628,9 @@ class ReportController extends Controller
                 $stats['half_day'],
                 $stats['leave'],
                 $stats['late_count'],
-                number_format($stats['total_hours'], 2) . 'h',
-                number_format($stats['required_work_hours'], 2) . 'h',
-                number_format($stats['overtime_hours'], 2) . 'h',
+                $totalHoursFormatted,
+                $requiredHoursFormatted,
+                $overtimeHoursFormatted,
                 $stats['work_efficiency'] . '%'
             ]);
             fputcsv($file, []);
@@ -600,15 +642,20 @@ class ReportController extends Controller
             ]);
 
             foreach ($attendances as $attendance) {
+                $lateStatus = '-';
+                if ($attendance->status === 'present') {
+                    $lateStatus = $attendance->is_late ? $attendance->late_status : 'On Time';
+                }
+
                 fputcsv($file, [
                     $attendance->attendance_date->format('d M Y'),
                     $attendance->attendance_date->format('l'),
-                    $attendance->check_in_time ? $attendance->check_in_time->format('H:i') : '-',
-                    $attendance->check_out_time ? $attendance->check_out_time->format('H:i') : '-',
-                    $attendance->is_late ? $attendance->late_status : 'On Time',
-                    number_format($attendance->regular_hours ?? 0, 2),
-                    number_format($attendance->overtime_hours ?? 0, 2),
-                    number_format($attendance->total_hours ?? 0, 2),
+                    $attendance->check_in_time ? $attendance->check_in_time->format('h:i A') : '-',
+                    $attendance->check_out_time ? $attendance->check_out_time->format('h:i A') : '-',
+                    $lateStatus,
+                    $this->formatHoursMinutes($attendance->regular_hours ?? 0),
+                    $this->formatHoursMinutes($attendance->overtime_hours ?? 0),
+                    $this->formatHoursMinutes($attendance->total_hours ?? 0),
                     ucfirst($attendance->status),
                     $attendance->notes ?? '-'
                 ]);
@@ -623,11 +670,11 @@ class ReportController extends Controller
     private function employeeExportPdf($employee, $attendances, $stats, $startDate, $endDate)
     {
         $data = [
-            'employee' => $employee,
+            'employee'   => $employee,
             'attendances' => $attendances,
-            'stats' => $stats,
+            'stats'      => $stats,
             'start_date' => $startDate,
-            'end_date' => $endDate,
+            'end_date'   => $endDate,
         ];
 
         $pdf = Pdf::loadView('reports.employee-detail-pdf', $data)

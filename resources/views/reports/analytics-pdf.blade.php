@@ -272,15 +272,14 @@
             <h2>Attendance Analytics Report</h2>
             <p>{{ \Carbon\Carbon::parse($start_date)->format('d M Y') }} to
                 {{ \Carbon\Carbon::parse($end_date)->format('d M Y') }} | Active Employees: {{ $active_employee_count }}
-                | Records: {{ $total_records }}</p>
+                | Records: {{ count($employee_reports ?? []) }}</p>
             <p>Generated: {{ now()->format('d M Y, h:i A') }}</p>
         </div>
     </div>
 
     <div class="team-efficiency">
         <div
-            class="score
-            {{ $team_efficiency >= 90 ? 'color-success' : ($team_efficiency >= 75 ? 'color-warning' : 'color-danger') }}">
+            class="score {{ $team_efficiency >= 90 ? 'color-success' : ($team_efficiency >= 75 ? 'color-warning' : 'color-danger') }}">
             {{ $team_efficiency }}%
         </div>
         <div class="label">Overall Team Efficiency</div>
@@ -312,27 +311,15 @@
                     <p>Late</p>
                 </div>
                 <div class="summary-item">
-                    @php
-                        $rh = floor($total_required_hours);
-                        $rm = round(($total_required_hours - $rh) * 60);
-                    @endphp
-                    <strong>{{ $rh }}h</strong>
+                    <strong>{{ $total_required_hours_formatted ?? '0h 00m' }}</strong>
                     <p>Required Hours</p>
                 </div>
                 <div class="summary-item">
-                    @php
-                        $ah = floor($total_actual_hours);
-                        $am = round(($total_actual_hours - $ah) * 60);
-                    @endphp
-                    <strong class="color-info">{{ $ah }}h</strong>
+                    <strong class="color-info">{{ $total_actual_hours_formatted ?? '0h 00m' }}</strong>
                     <p>Actual Hours</p>
                 </div>
                 <div class="summary-item">
-                    @php
-                        $oth = floor($summary['total_overtime_hours']);
-                        $otm = round(($summary['total_overtime_hours'] - $oth) * 60);
-                    @endphp
-                    <strong class="color-warning">{{ $oth }}h</strong>
+                    <strong class="color-warning">{{ $summary['total_overtime_hours_formatted'] ?? '0h 00m' }}</strong>
                     <p>Overtime</p>
                 </div>
             </div>
@@ -385,21 +372,11 @@
                             <p>Late</p>
                         </div>
                         <div class="stat-box">
-                            @php
-                                $th = floor($report['total_hours']);
-                                $tm = round(($report['total_hours'] - $th) * 60);
-                                $rh = floor($report['required_work_hours']);
-                                $rm = round(($report['required_work_hours'] - $rh) * 60);
-                            @endphp
-                            <strong>{{ $th }}h / {{ $rh }}h</strong>
+                            <strong>{{ $report['total_hours_formatted'] ?? '0h 00m' }} / {{ $report['required_hours_formatted'] ?? '0h 00m' }}</strong>
                             <p>Actual / Required</p>
                         </div>
                         <div class="stat-box">
-                            @php
-                                $oth = floor($report['overtime_hours']);
-                                $otm = round(($report['overtime_hours'] - $oth) * 60);
-                            @endphp
-                            <strong class="color-warning">{{ $oth }}h</strong>
+                            <strong class="color-warning">{{ $report['overtime_hours_formatted'] ?? '0h 00m' }}</strong>
                             <p>Overtime</p>
                         </div>
                     </div>
@@ -411,8 +388,7 @@
                             <div class="date-group">
                                 <h5 class="color-success">✓ {{ count($report['present_dates']) }} Present:</h5>
                                 @foreach ($report['present_dates'] as $date)
-                                    <span
-                                        class="badge badge-success">{{ \Carbon\Carbon::parse($date)->format('d') }}</span>
+                                    <span class="badge badge-success">{{ \Carbon\Carbon::parse($date)->format('d') }}</span>
                                 @endforeach
                             </div>
                         @endif
@@ -421,8 +397,7 @@
                             <div class="date-group">
                                 <h5 class="color-danger">✗ {{ count($report['absent_dates']) }} Absent:</h5>
                                 @foreach ($report['absent_dates'] as $date)
-                                    <span
-                                        class="badge badge-danger">{{ \Carbon\Carbon::parse($date)->format('d') }}</span>
+                                    <span class="badge badge-danger">{{ \Carbon\Carbon::parse($date)->format('d') }}</span>
                                 @endforeach
                             </div>
                         @endif
@@ -431,8 +406,7 @@
                             <div class="date-group">
                                 <h5 class="color-info">⊙ {{ count($report['leave_dates']) }} Leave:</h5>
                                 @foreach ($report['leave_dates'] as $date)
-                                    <span
-                                        class="badge badge-info">{{ \Carbon\Carbon::parse($date)->format('d') }}</span>
+                                    <span class="badge badge-info">{{ \Carbon\Carbon::parse($date)->format('d') }}</span>
                                 @endforeach
                             </div>
                         @endif

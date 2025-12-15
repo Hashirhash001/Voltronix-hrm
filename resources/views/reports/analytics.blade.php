@@ -21,11 +21,15 @@
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
                 <div>
                     <label class="mb-2 block text-xs font-semibold">Start Date</label>
-                    <input type="date" name="start_date" value="{{ $startDate }}" class="form-input" required>
+                    <input type="date" name="start_date" value="{{ $startDate }}"
+                           max="{{ \Carbon\Carbon::today()->format('Y-m-d') }}"
+                           class="form-input" required>
                 </div>
                 <div>
                     <label class="mb-2 block text-xs font-semibold">End Date</label>
-                    <input type="date" name="end_date" value="{{ $endDate }}" class="form-input" required>
+                    <input type="date" name="end_date" value="{{ $endDate }}"
+                           max="{{ \Carbon\Carbon::today()->format('Y-m-d') }}"
+                           class="form-input" required>
                 </div>
                 <div>
                     <label class="mb-2 block text-xs font-semibold">Employee (Optional)</label>
@@ -81,7 +85,10 @@
                         <div class="panel mb-6">
                             <div class="mb-4 flex items-center justify-between border-b pb-3">
                                 <div>
-                                    <h3 class="text-xl font-semibold text-primary">{{ $report['employee']->employee_name }}</h3>
+                                    <a href="{{ route('reports.employee-detail', ['employee' => $report['employee']->id, 'start_date' => $reportData['start_date'], 'end_date' => $reportData['end_date']]) }}"
+                                       class="text-xl font-semibold text-primary hover:underline">
+                                        {{ $report['employee']->employee_name }}
+                                    </a>
                                     <p class="text-sm text-gray-600">Staff No: {{ $report['employee']->staff_number }}</p>
                                 </div>
                                 <div class="text-right">
@@ -119,11 +126,7 @@
                                     <p class="text-xs text-gray-600">Late Entries</p>
                                 </div>
                                 <div class="rounded border-l-4 border-secondary bg-gray-50 p-3 dark:bg-gray-800">
-                                    @php
-                                        $oth = floor($report['overtime_hours']);
-                                        $otm = round(($report['overtime_hours'] - $oth) * 60);
-                                    @endphp
-                                    <p class="text-lg font-bold text-secondary">{{ $oth }}h {{ $otm }}m</p>
+                                    <p class="text-lg font-bold text-secondary">{{ $report['overtime_hours_formatted'] }}</p>
                                     <p class="text-xs text-gray-600">Overtime</p>
                                 </div>
                             </div>
@@ -132,19 +135,11 @@
                             <div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div class="rounded border-l-4 border-primary bg-gray-50 p-3 dark:bg-gray-800">
                                     <p class="text-sm text-gray-600 mb-1">Actual Work Hours</p>
-                                    @php
-                                        $th = floor($report['total_hours']);
-                                        $tm = round(($report['total_hours'] - $th) * 60);
-                                    @endphp
-                                    <p class="text-2xl font-bold text-primary">{{ $th }}h {{ $tm }}m</p>
+                                    <p class="text-2xl font-bold text-primary">{{ $report['total_hours_formatted'] }}</p>
                                 </div>
                                 <div class="rounded border-l-4 border-secondary bg-gray-50 p-3 dark:bg-gray-800">
                                     <p class="text-sm text-gray-600 mb-1">Required Work Hours</p>
-                                    @php
-                                        $rh = floor($report['required_work_hours']);
-                                        $rm = round(($report['required_work_hours'] - $rh) * 60);
-                                    @endphp
-                                    <p class="text-2xl font-bold">{{ $rh }}h {{ $rm }}m</p>
+                                    <p class="text-2xl font-bold">{{ $report['required_hours_formatted'] }}</p>
                                 </div>
                             </div>
 
@@ -281,20 +276,12 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div class="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded">
                                 <p class="text-sm text-gray-600 mb-1">Required Work Hours</p>
-                                @php
-                                    $reqHours = floor($reportData['total_required_hours']);
-                                    $reqMinutes = round(($reportData['total_required_hours'] - $reqHours) * 60);
-                                @endphp
-                                <p class="text-2xl font-bold">{{ $reqHours }}h {{ $reqMinutes }}m</p>
+                                <p class="text-2xl font-bold">{{ $reportData['total_required_hours_formatted'] }}</p>
                                 <p class="text-xs text-gray-500 mt-1">({{ $reportData['total_working_days'] }} working days × 10 hours × {{ $reportData['active_employee_count'] }} employees)</p>
                             </div>
                             <div class="text-center p-4 bg-primary-light rounded">
                                 <p class="text-sm text-gray-600 mb-1">Actual Work Hours</p>
-                                @php
-                                    $actualHours = floor($reportData['total_actual_hours']);
-                                    $actualMinutes = round(($reportData['total_actual_hours'] - $actualHours) * 60);
-                                @endphp
-                                <p class="text-2xl font-bold text-primary">{{ $actualHours }}h {{ $actualMinutes }}m</p>
+                                <p class="text-2xl font-bold text-primary">{{ $reportData['total_actual_hours_formatted'] }}</p>
                                 <p class="text-xs text-gray-500 mt-1">Combined hours by all employees</p>
                             </div>
                             <div class="text-center p-4 rounded
@@ -304,15 +291,15 @@
                                 </p>
                                 @php
                                     $diff = abs($reportData['total_actual_hours'] - $reportData['total_required_hours']);
-                                    $diffHours = floor($diff);
-                                    $diffMinutes = round(($diff - $diffHours) * 60);
+                                    $diffH = floor($diff);
+                                    $diffM = round(($diff - $diffH) * 60);
                                     $diffColor = $reportData['total_actual_hours'] >= $reportData['total_required_hours'] ? 'text-success' : 'text-danger';
                                     $required = $reportData['total_required_hours'];
                                     $actual = $reportData['total_actual_hours'];
                                     $completionPercent = $required > 0 ? round(($actual / $required) * 100, 1) : 0;
                                 @endphp
                                 <p class="text-2xl font-bold {{ $diffColor }}">
-                                    {{ $reportData['total_actual_hours'] >= $reportData['total_required_hours'] ? '+' : '-' }}{{ $diffHours }}h {{ $diffMinutes }}m
+                                    {{ $reportData['total_actual_hours'] >= $reportData['total_required_hours'] ? '+' : '-' }}{{ $diffH }}h {{ $diffM }}m
                                 </p>
                                 <p class="text-xs text-gray-500 mt-1">
                                     {{ $completionPercent }}% completion
@@ -410,11 +397,7 @@
                                         <p class="text-xs text-gray-500 mt-0.5">{{ $onTime }} on time</p>
                                     </div>
                                     <div class="rounded border-l-4 border-secondary bg-gray-50 p-3 dark:bg-gray-800">
-                                        @php
-                                            $oth = floor($report['overtime_hours']);
-                                            $otm = round(($report['overtime_hours'] - $oth) * 60);
-                                        @endphp
-                                        <p class="text-xl font-bold text-secondary">{{ $oth }}h {{ $otm }}m</p>
+                                        <p class="text-xl font-bold text-secondary">{{ $report['overtime_hours_formatted'] }}</p>
                                         <p class="text-xs text-gray-600">Total Overtime</p>
                                     </div>
                                 </div>
@@ -423,19 +406,11 @@
                                 <div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <div class="rounded border-l-4 border-primary bg-gray-50 p-3 dark:bg-gray-800">
                                         <p class="text-sm text-gray-600 mb-1">Actual Work Hours</p>
-                                        @php
-                                            $th = floor($report['total_hours']);
-                                            $tm = round(($report['total_hours'] - $th) * 60);
-                                        @endphp
-                                        <p class="text-2xl font-bold text-primary">{{ $th }}h {{ $tm }}m</p>
+                                        <p class="text-2xl font-bold text-primary">{{ $report['total_hours_formatted'] }}</p>
                                     </div>
                                     <div class="rounded border-l-4 border-secondary bg-gray-50 p-3 dark:bg-gray-800">
                                         <p class="text-sm text-gray-600 mb-1">Required Work Hours</p>
-                                        @php
-                                            $rh = floor($report['required_work_hours']);
-                                            $rm = round(($report['required_work_hours'] - $rh) * 60);
-                                        @endphp
-                                        <p class="text-2xl font-bold">{{ $rh }}h {{ $rm }}m</p>
+                                        <p class="text-2xl font-bold">{{ $report['required_hours_formatted'] }}</p>
                                     </div>
                                 </div>
 

@@ -3,9 +3,10 @@
 
 namespace App\Models;
 
+use Illuminate\Support\Carbon;
+use App\Models\EmployeeDocument;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Carbon;
 
 class Employee extends Model
 {
@@ -17,6 +18,8 @@ class Employee extends Model
         'employee_name',
         'designation',
         'qualification',
+        'year_of_completion',
+        'qualification_document',
         'pp_status',
         'uae_contact',
         'home_country_contact',
@@ -32,27 +35,28 @@ class Employee extends Model
         'recent_increment_amount',
         'increment_date',
         'passport_expiry_date',
+        'passport_document',
         'visa_expiry_date',
+        'visa_document',
         'visit_expiry_date',
+        'visit_document',
         'eid_expiry_date',
+        'eid_document',
         'health_insurance_expiry_date',
+        'health_insurance_document',
         'driving_license_expiry_date',
+        'driving_license_document',
         'salary_card_details',
         'iloe_insurance_expiry_date',
-        'vtnx_trade_license_renewal_date',
-        'po_box_renewal_date',
+        'iloe_insurance_document',
         'soe_card_renewal_date',
+        'soe_card_document',
         'dcd_card_renewal_date',
-        'voltronix_est_card_renewal_date',
-        'warehouse_ejari_renewal_date',
-        'camp_ejari_renewal_date',
+        'dcd_card_document',
         'workman_insurance_expiry_date',
-        'etisalat_contract_expiry_date',
-        'dewa_details',
+        'workman_insurance_document',
         'remarks',
         'status',
-        'year_of_completion',
-        'qualification_document',
     ];
 
     protected $casts = [
@@ -68,15 +72,9 @@ class Employee extends Model
         'health_insurance_expiry_date' => 'date',
         'driving_license_expiry_date' => 'date',
         'iloe_insurance_expiry_date' => 'date',
-        'vtnx_trade_license_renewal_date' => 'date',
-        'po_box_renewal_date' => 'date',
         'soe_card_renewal_date' => 'date',
         'dcd_card_renewal_date' => 'date',
-        'voltronix_est_card_renewal_date' => 'date',
-        'warehouse_ejari_renewal_date' => 'date',
-        'camp_ejari_renewal_date' => 'date',
         'workman_insurance_expiry_date' => 'date',
-        'etisalat_contract_expiry_date' => 'date',
         'resignation_date' => 'date',
         'basic_salary' => 'decimal:2',
         'allowance' => 'decimal:2',
@@ -116,15 +114,9 @@ class Employee extends Model
             'health_insurance_expiry_date' => 'Health Insurance',
             'driving_license_expiry_date' => 'Driving License',
             'iloe_insurance_expiry_date' => 'ILOE Insurance',
-            'vtnx_trade_license_renewal_date' => 'VTNX Trade License',
-            'po_box_renewal_date' => 'PO Box',
             'soe_card_renewal_date' => 'SOE Card',
             'dcd_card_renewal_date' => 'DCD Card',
-            'voltronix_est_card_renewal_date' => 'Voltronix EST Card',
-            'warehouse_ejari_renewal_date' => 'Warehouse EJARI',
-            'camp_ejari_renewal_date' => 'Camp EJARI',
             'workman_insurance_expiry_date' => 'Workman Insurance',
-            'etisalat_contract_expiry_date' => 'Etisalat Contract',
         ];
     }
 

@@ -1,4 +1,5 @@
 <?php
+// app/Http/Controllers/AttendanceController.php
 
 namespace App\Http\Controllers;
 
@@ -16,14 +17,12 @@ class AttendanceController extends Controller
     {
         $query = Attendance::with('employee');
 
-        // Filter by date
         if ($request->has('date') && $request->date) {
             $query->whereDate('attendance_date', $request->date);
         } else {
             $query->whereDate('attendance_date', Carbon::today());
         }
 
-        // Filter by employee
         if ($request->has('employee_id') && $request->employee_id) {
             $query->where('employee_id', $request->employee_id);
         }
@@ -31,7 +30,6 @@ class AttendanceController extends Controller
         $attendances = $query->orderBy('attendance_date', 'desc')->paginate(15);
         $employees = Employee::where('status', 'active')->orderBy('employee_name')->get();
 
-        // Calculate statistics
         $stats = [
             'present' => Attendance::whereDate('attendance_date', $request->date ?? Carbon::today())->where('status', 'present')->count(),
             'absent' => Attendance::whereDate('attendance_date', $request->date ?? Carbon::today())->where('status', 'absent')->count(),
@@ -39,8 +37,25 @@ class AttendanceController extends Controller
         ];
 
         if ($request->ajax()) {
+            $attendancesArray = $attendances->map(function($item) {
+                return [
+                    'id' => $item->id,
+                    'employee' => $item->employee,
+                    'staff_number' => $item->staff_number,
+                    'attendance_date' => $item->attendance_date,
+                    'check_in_time' => $item->check_in_time,
+                    'check_out_time' => $item->check_out_time,
+                    'total_hours' => $item->total_hours,
+                    'formatted_total_hours' => $item->getFormattedTotalHours(),
+                    'overtime_hours' => $item->overtime_hours,
+                    'formatted_overtime_hours' => $item->getFormattedOvertimeHours(),
+                    'status' => $item->status,
+                    'notes' => $item->notes,
+                ];
+            });
+
             return response()->json([
-                'attendances' => $attendances->items(),
+                'attendances' => $attendancesArray,
                 'pagination' => [
                     'current_page' => $attendances->currentPage(),
                     'last_page' => $attendances->lastPage(),
@@ -51,7 +66,7 @@ class AttendanceController extends Controller
             ]);
         }
 
-        return view('attendances.index', compact('attendances', 'employees', 'stats'));
+        return view('attendances.index', compact('attendances', 'employees', 'stats', 'request'));
     }
 
     public function generateToday(Request $request)
@@ -65,21 +80,35 @@ class AttendanceController extends Controller
             $created = 0;
 
             foreach ($employees as $employee) {
-                // Only create if doesn't exist
                 $exists = Attendance::where('employee_id', $employee->id)
                     ->whereDate('attendance_date', $date)
                     ->exists();
 
                 if (!$exists) {
-                    Attendance::create([
+                    $attendance = Attendance::create([
                         'employee_id' => $employee->id,
                         'staff_number' => $employee->staff_number,
                         'attendance_date' => $date,
-                        'check_in_time' => null,
-                        'check_out_time' => null,
-                        'status' => 'absent',
+                        'check_in_time' => $date . ' 08:00:00',
+                        'check_out_time' => $date . ' 18:00:00',
+                        'status' => 'present',
                         'notes' => null,
                     ]);
+
+                    $attendance->calculateHours();
+
+                    if ($attendance->hasOvertime()) {
+                        $overtimeRecord = OvertimeRecord::create([
+                            'employee_id' => $attendance->employee_id,
+                            'attendance_id' => $attendance->id,
+                            'overtime_date' => $attendance->attendance_date,
+                            'overtime_hours' => $attendance->overtime_hours,
+                            'overtime_rate' => 1.5,
+                            'status' => 'pending',
+                        ]);
+                        $overtimeRecord->calculateOvertimeAmount();
+                    }
+
                     $created++;
                 }
             }
@@ -88,7 +117,7 @@ class AttendanceController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => "{$created} attendance records generated successfully!",
+                'message' => "{$created} attendance records generated successfully with default timings (8 AM - 6 PM)!",
             ]);
 
         } catch (\Exception $e) {
@@ -105,20 +134,74 @@ class AttendanceController extends Controller
         $validated = $request->validate([
             'check_in_time' => 'nullable|date_format:H:i',
             'check_out_time' => 'nullable|date_format:H:i',
-            'status' => 'required|in:present,absent,half_day,leave,holiday',
+            'status' => 'nullable|in:present,absent,half_day,leave,holiday',
+            'manual_status_change' => 'nullable|in:true,false,1,0', // Accept string or integer boolean
         ]);
 
         try {
             DB::beginTransaction();
 
+            $status = $validated['status'] ?? $attendance->status;
+            // Convert to actual boolean
+            $isManualStatusChange = in_array($validated['manual_status_change'] ?? false, ['true', '1', 1, true], true);
+            $checkInTime = null;
+            $checkOutTime = null;
+
+            // If status was manually changed to absent/leave, clear times
+            if ($isManualStatusChange && in_array($status, ['absent', 'leave'])) {
+                $checkInTime = null;
+                $checkOutTime = null;
+            }
+            // If status was manually changed to half_day, keep existing times OR set defaults
+            elseif ($isManualStatusChange && $status === 'half_day') {
+                if (!empty($validated['check_in_time']) && !empty($validated['check_out_time'])) {
+                    // User has times, keep them (even if 10 hours - they explicitly chose half_day)
+                    $checkInTime = $attendance->attendance_date->format('Y-m-d') . ' ' . $validated['check_in_time'];
+                    $checkOutTime = $attendance->attendance_date->format('Y-m-d') . ' ' . $validated['check_out_time'];
+                } elseif ($attendance->check_in_time && $attendance->check_out_time) {
+                    // Keep existing times from database
+                    $checkInTime = $attendance->check_in_time;
+                    $checkOutTime = $attendance->check_out_time;
+                } else {
+                    // No times exist, set default half day times
+                    $checkInTime = $attendance->attendance_date->format('Y-m-d') . ' 08:00:00';
+                    $checkOutTime = $attendance->attendance_date->format('Y-m-d') . ' 12:00:00';
+                }
+            }
+            // For any other status or time change
+            else {
+                // Use provided times or existing times or defaults
+                if (!empty($validated['check_in_time'])) {
+                    $checkInTime = $attendance->attendance_date->format('Y-m-d') . ' ' . $validated['check_in_time'];
+                } elseif ($attendance->check_in_time) {
+                    $checkInTime = $attendance->check_in_time;
+                }
+
+                if (!empty($validated['check_out_time'])) {
+                    $checkOutTime = $attendance->attendance_date->format('Y-m-d') . ' ' . $validated['check_out_time'];
+                } elseif ($attendance->check_out_time) {
+                    $checkOutTime = $attendance->check_out_time;
+                }
+
+                // If times are provided but no status change, auto-determine status from hours
+                if (!$isManualStatusChange && $checkInTime && $checkOutTime) {
+                    $hoursWorked = Carbon::parse($checkInTime)->diffInMinutes(Carbon::parse($checkOutTime)) / 60;
+
+                    // Auto-set status based on hours worked
+                    if ($hoursWorked >= 8) {
+                        $status = 'present';
+                    } elseif ($hoursWorked >= 4 && $hoursWorked < 8) {
+                        $status = 'half_day';
+                    } elseif ($hoursWorked > 0 && $hoursWorked < 4) {
+                        $status = 'absent';
+                    }
+                }
+            }
+
             $attendance->update([
-                'check_in_time' => $validated['check_in_time']
-                    ? $attendance->attendance_date->format('Y-m-d') . ' ' . $validated['check_in_time']
-                    : null,
-                'check_out_time' => $validated['check_out_time']
-                    ? $attendance->attendance_date->format('Y-m-d') . ' ' . $validated['check_out_time']
-                    : null,
-                'status' => $validated['status'],
+                'check_in_time' => $checkInTime,
+                'check_out_time' => $checkOutTime,
+                'status' => $status,
             ]);
 
             if ($attendance->check_in_time && $attendance->check_out_time) {
@@ -136,15 +219,44 @@ class AttendanceController extends Controller
                         ]
                     );
                     $overtimeRecord->calculateOvertimeAmount();
+                } else {
+                    // Delete overtime record if no longer overtime
+                    if ($attendance->overtimeRecord) {
+                        $attendance->overtimeRecord->delete();
+                    }
+                }
+            } else {
+                // No times, reset hours to 0
+                $attendance->update([
+                    'regular_hours' => 0,
+                    'overtime_hours' => 0,
+                    'total_hours' => 0,
+                ]);
+
+                // Delete overtime record
+                if ($attendance->overtimeRecord) {
+                    $attendance->overtimeRecord->delete();
                 }
             }
 
             DB::commit();
 
+            // Return fresh data
+            $attendance->refresh();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Attendance updated successfully!',
-                'attendance' => $attendance->fresh()->load('employee'),
+                'attendance' => [
+                    'id' => $attendance->id,
+                    'status' => $attendance->status,
+                    'check_in_time' => $attendance->check_in_time,
+                    'check_out_time' => $attendance->check_out_time,
+                    'total_hours' => $attendance->total_hours,
+                    'formatted_total_hours' => $attendance->getFormattedTotalHours(),
+                    'overtime_hours' => $attendance->overtime_hours,
+                    'formatted_overtime_hours' => $attendance->getFormattedOvertimeHours(),
+                ],
             ]);
 
         } catch (\Exception $e) {
@@ -285,7 +397,6 @@ class AttendanceController extends Controller
         try {
             DB::beginTransaction();
 
-            // Delete related overtime record if exists
             if ($attendance->overtimeRecord) {
                 $attendance->overtimeRecord->delete();
             }
@@ -350,24 +461,20 @@ class AttendanceController extends Controller
         $callback = function() use ($attendances) {
             $file = fopen('php://output', 'w');
 
-            // Add UTF-8 BOM for Excel
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
-            // Add headers
             fputcsv($file, [
                 'Date',
                 'Staff Number',
                 'Employee Name',
                 'Check In',
                 'Check Out',
-                'Regular Hours',
-                'Overtime Hours',
                 'Total Hours',
+                'Overtime Hours',
                 'Status',
                 'Notes'
             ]);
 
-            // Add data rows
             foreach ($attendances as $attendance) {
                 fputcsv($file, [
                     $attendance->attendance_date->format('Y-m-d'),
@@ -375,9 +482,8 @@ class AttendanceController extends Controller
                     $attendance->employee->employee_name ?? 'N/A',
                     $attendance->check_in_time ? $attendance->check_in_time->format('H:i:s') : '-',
                     $attendance->check_out_time ? $attendance->check_out_time->format('H:i:s') : '-',
-                    number_format($attendance->regular_hours ?? 0, 2),
-                    number_format($attendance->overtime_hours ?? 0, 2),
-                    number_format($attendance->total_hours ?? 0, 2),
+                    $attendance->getFormattedTotalHours(),
+                    $attendance->getFormattedOvertimeHours(),
                     ucfirst($attendance->status),
                     $attendance->notes ?? ''
                 ]);
@@ -391,7 +497,6 @@ class AttendanceController extends Controller
 
     private function exportToPdf($attendances, $startDate, $endDate)
     {
-        // Group attendances by date for better organization
         $groupedAttendances = $attendances->groupBy(function($item) {
             return $item->attendance_date->format('Y-m-d');
         });
@@ -407,7 +512,7 @@ class AttendanceController extends Controller
                 'total_half_day' => $attendances->where('status', 'half_day')->count(),
                 'total_leave' => $attendances->where('status', 'leave')->count(),
                 'total_holiday' => $attendances->where('status', 'holiday')->count(),
-                'total_regular_hours' => $attendances->sum('regular_hours'),
+                'total_hours' => $attendances->sum('total_hours'),
                 'total_overtime_hours' => $attendances->sum('overtime_hours'),
             ]
         ];
@@ -418,5 +523,4 @@ class AttendanceController extends Controller
 
         return $pdf->download($filename);
     }
-
 }

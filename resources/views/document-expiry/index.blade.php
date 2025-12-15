@@ -1,4 +1,3 @@
-{{-- resources/views/document-expiry/index.blade.php --}}
 @extends('layouts.app')
 
 @section('title', 'Document Expiry Alerts')
@@ -108,45 +107,52 @@
                 <button @click="resetFilters()" class="text-xs text-primary hover:underline">Reset Filters</button>
             </div>
 
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
                 <!-- Search Filter -->
                 <div>
-                    <label class="mb-2 block text-xs font-semibold">Search Employee</label>
+                    <label class="mb-2 block text-xs font-semibold">Search</label>
                     <input
                         type="text"
                         class="form-input"
-                        placeholder="Name or staff number..."
+                        placeholder="Name or number..."
                         x-model="filters.search"
                         @input="debounceFilter"
                     />
                 </div>
 
-                <!-- Document Type Filter - ALL 16 DOCUMENTS -->
+                <!-- Category Filter -->
+                <div>
+                    <label class="mb-2 block text-xs font-semibold">Category</label>
+                    <select class="form-select" x-model="filters.category" @change="applyFilters">
+                        <option value="all">All Categories</option>
+                        <option value="employee">Employees</option>
+                        <option value="entity">Entities</option>
+                        <option value="vehicle">Vehicles</option>
+                    </select>
+                </div>
+
+                <!-- Document Type Filter -->
                 <div>
                     <label class="mb-2 block text-xs font-semibold">Document Type</label>
                     <select class="form-select" x-model="filters.document" @change="applyFilters">
                         <option value="all">All Documents</option>
 
-                        <optgroup label="Personal Documents">
-                            <option value="passport_expiry_date">Passport</option>
-                            <option value="visa_expiry_date">Visa</option>
-                            <option value="visit_expiry_date">Visit Permit</option>
-                            <option value="eid_expiry_date">EID</option>
-                            <option value="health_insurance_expiry_date">Health Insurance</option>
-                            <option value="driving_license_expiry_date">Driving License</option>
+                        <optgroup label="Employee Documents">
+                            @foreach($employeeDocuments as $field => $name)
+                                <option value="{{ $field }}">{{ $name }}</option>
+                            @endforeach
                         </optgroup>
 
-                        <optgroup label="Company & Insurance">
-                            <option value="iloe_insurance_expiry_date">ILOE Insurance</option>
-                            <option value="vtnx_trade_license_renewal_date">VTNX Trade License</option>
-                            <option value="po_box_renewal_date">PO Box</option>
-                            <option value="soe_card_renewal_date">SOE Card</option>
-                            <option value="dcd_card_renewal_date">DCD Card</option>
-                            <option value="voltronix_est_card_renewal_date">Voltronix EST Card</option>
-                            <option value="warehouse_ejari_renewal_date">Warehouse EJARI</option>
-                            <option value="camp_ejari_renewal_date">Camp EJARI</option>
-                            <option value="workman_insurance_expiry_date">Workman Insurance</option>
-                            <option value="etisalat_contract_expiry_date">Etisalat Contract</option>
+                        <optgroup label="Entity Documents">
+                            @foreach($entityDocuments as $field => $name)
+                                <option value="{{ $field }}">{{ $name }}</option>
+                            @endforeach
+                        </optgroup>
+
+                        <optgroup label="Vehicle Documents">
+                            @foreach($vehicleDocuments as $field => $name)
+                                <option value="{{ $field }}">{{ $name }}</option>
+                            @endforeach
                         </optgroup>
                     </select>
                 </div>
@@ -183,7 +189,8 @@
                     <table class="table-striped table-hover">
                         <thead>
                             <tr>
-                                <th>Employee</th>
+                                <th>Category</th>
+                                <th>Name/Identifier</th>
                                 <th>Document Type</th>
                                 <th>Expiry Date</th>
                                 <th>Days Remaining</th>
@@ -193,12 +200,15 @@
                         </thead>
                         <tbody>
                             <template x-if="alerts.length > 0">
-                                <template x-for="alert in alerts" :key="alert.employee.id + '-' + alert.document_field">
+                                <template x-for="alert in alerts" :key="alert.category + '-' + alert.model.id + '-' + alert.document_field">
                                     <tr>
                                         <td>
+                                            <span class="badge bg-secondary" x-text="alert.category_label"></span>
+                                        </td>
+                                        <td>
                                             <div>
-                                                <p class="font-semibold" x-text="alert.employee.employee_name"></p>
-                                                <p class="text-xs text-white-dark" x-text="alert.employee.staff_number"></p>
+                                                <p class="font-semibold" x-text="alert.name"></p>
+                                                <p class="text-xs text-white-dark" x-text="alert.identifier"></p>
                                             </div>
                                         </td>
                                         <td>
@@ -218,7 +228,7 @@
                                             <span class="badge" :class="'bg-' + alert.status_class" x-text="alert.status_label"></span>
                                         </td>
                                         <td class="text-center">
-                                            <a :href="`/employees/${alert.employee.id}`" class="btn btn-sm btn-outline-primary" title="View Employee">
+                                            <a :href="alert.view_route" class="btn btn-sm btn-outline-primary" title="View Details">
                                                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                                                     <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
@@ -231,14 +241,14 @@
                             </template>
                             <template x-if="alerts.length === 0">
                                 <tr>
-                                    <td colspan="6" class="text-center py-12 text-white-dark">
+                                    <td colspan="7" class="text-center py-12 text-white-dark">
                                         <div class="flex flex-col items-center justify-center">
                                             <svg class="h-16 w-16 text-success mb-4 opacity-50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
                                                 <path d="M8 12L10.5 14.5L16 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                                             </svg>
                                             <p class="font-semibold text-lg">No document expiry alerts found</p>
-                                            <p class="text-sm text-white-dark">All employee documents are up to date</p>
+                                            <p class="text-sm text-white-dark">All documents are up to date</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -316,6 +326,7 @@
             filters: {
                 status: '{{ $statusFilter }}',
                 document: '{{ $documentFilter }}',
+                category: '{{ $categoryFilter ?? 'all' }}',
                 search: '{{ $searchQuery }}'
             },
             currentPage: {{ $page }},
@@ -347,6 +358,7 @@
                 params.append('page', this.currentPage);
                 if (this.filters.status && this.filters.status !== 'all') params.append('status', this.filters.status);
                 if (this.filters.document && this.filters.document !== 'all') params.append('document', this.filters.document);
+                if (this.filters.category && this.filters.category !== 'all') params.append('category', this.filters.category);
                 if (this.filters.search) params.append('search', this.filters.search);
 
                 try {
@@ -398,6 +410,7 @@
                 this.filters = {
                     status: 'all',
                     document: 'all',
+                    category: 'all',
                     search: ''
                 };
                 this.currentPage = 1;
