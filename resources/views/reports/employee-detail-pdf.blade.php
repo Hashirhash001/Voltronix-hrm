@@ -140,6 +140,11 @@
             color: #856404;
         }
 
+        .badge-secondary {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+
         .color-success {
             color: #28a745;
         }
@@ -151,13 +156,17 @@
         .color-warning {
             color: #ffc107;
         }
+
+        .color-info {
+            color: #17a2b8;
+        }
     </style>
 </head>
 
 <body>
     <div class="header">
         <div class="header-logo">
-            <img src="{{ public_path('assets/images/logo/main-logo.jpg') }}" alt="Logo">
+            <img src="https://hrm.voltronix.ae/assets/images/logo/small_logo.jpg" alt="Logo">
         </div>
         <div class="header-content">
             <h2>Employee Attendance Report</h2>
@@ -177,14 +186,24 @@
             <div class="stat-item">
                 <strong class="color-success">{{ $stats['present'] }}/{{ $stats['total_working_days'] }}</strong>
                 <p>Present/Working Days</p>
+                <p style="font-size: 6px;">(Mon-Sat only)</p>
             </div>
             <div class="stat-item">
                 <strong class="color-danger">{{ $stats['absent'] }}</strong>
-                <p>Absent</p>
+                <p>Absent Days</p>
             </div>
             <div class="stat-item">
                 <strong class="color-warning">{{ $stats['late_count'] }}</strong>
                 <p>Late Entries</p>
+            </div>
+            <div class="stat-item">
+                <strong class="color-info">{{ $stats['extra_days_worked'] ?? 0 }}</strong>
+                <p>Extra Days Worked</p>
+                @php
+                    $edh = floor($stats['extra_days_hours'] ?? 0);
+                    $edm = round((($stats['extra_days_hours'] ?? 0) - $edh) * 60);
+                @endphp
+                <p style="font-size: 6px;">({{ $edh }}h {{ $edm }}m)</p>
             </div>
             <div class="stat-item">
                 @php
@@ -193,13 +212,18 @@
                     $rh = floor($stats['required_work_hours']);
                     $rm = round(($stats['required_work_hours'] - $rh) * 60);
                 @endphp
-                <strong>{{ $th }}h {{ $tm }}m / {{ $rh }}h
-                    {{ $rm }}m</strong>
-                <p>Actual / Required</p>
+                <strong>{{ $th }}h {{ $tm }}m</strong>
+                <p>/ {{ $rh }}h {{ $rm }}m</p>
+                <p style="font-size: 6px;">Actual / Required</p>
             </div>
             <div class="stat-item">
-                <strong>{{ $stats['work_efficiency'] }}%</strong>
+                <strong class="{{ $stats['work_efficiency'] >= 90 ? 'color-success' : ($stats['work_efficiency'] >= 75 ? 'color-warning' : 'color-danger') }}">
+                    {{ $stats['work_efficiency'] }}%
+                </strong>
                 <p>Work Efficiency</p>
+                @if($stats['work_efficiency'] > 100)
+                    <p style="font-size: 6px; color: #28a745;">⭐ Bonus!</p>
+                @endif
             </div>
         </div>
     </div>
@@ -221,34 +245,80 @@
         </thead>
         <tbody>
             @forelse($attendances as $attendance)
+                @php
+                    $isSunday = $attendance->attendance_date->dayOfWeek === \Carbon\Carbon::SUNDAY;
+                    $isHoliday = $attendance->status === 'holiday';
+                    $isExtraDay = ($isSunday || $isHoliday) && in_array($attendance->status, ['present', 'half_day']);
+                @endphp
                 <tr>
                     <td>{{ $attendance->attendance_date->format('d M Y') }}</td>
-                    <td>{{ $attendance->attendance_date->format('D') }}</td>
-                    <td>{{ $attendance->check_in_time ? $attendance->check_in_time->format('H:i A') : '-' }}</td>
-                    <td>{{ $attendance->check_out_time ? $attendance->check_out_time->format('H:i A') : '-' }}</td>
                     <td>
-                        @if ($attendance->status == 'present')
-                            @if ($attendance->is_late)
+                        {{ $attendance->attendance_date->format('D') }}
+                        @if($isExtraDay)
+                            <span class="badge badge-info">EXTRA</span>
+                        @endif
+                    </td>
+                    <td>{{ $attendance->getFormattedCheckInTime() }}</td>
+                    <td>{{ $attendance->getFormattedCheckOutTime() }}</td>
+                    <td>
+                        @if($attendance->status == 'present' && !$isSunday && !$isHoliday)
+                            @if($attendance->is_late)
                                 <span class="color-danger">{{ $attendance->late_status }}</span>
                             @else
                                 <span class="color-success">On Time</span>
                             @endif
                         @else
-                            {{ $attendance->status }}
+                            -
                         @endif
                     </td>
-                    <td>{{ number_format($attendance->regular_hours ?? 0, 2) }}h</td>
-                    <td>{{ number_format($attendance->overtime_hours ?? 0, 2) }}h</td>
-                    <td><strong>{{ number_format($attendance->total_hours ?? 0, 2) }}h</strong></td>
                     <td>
-                        @if ($attendance->status == 'present')
+                        @php
+                            $regH = floor($attendance->regular_hours ?? 0);
+                            $regM = round((($attendance->regular_hours ?? 0) - $regH) * 60);
+                        @endphp
+                        {{ $regH }}h {{ $regM }}m
+                    </td>
+                    <td>
+                        @if(($attendance->overtime_hours ?? 0) > 0)
+                            @php
+                                $otH = floor($attendance->overtime_hours);
+                                $otM = round(($attendance->overtime_hours - $otH) * 60);
+                            @endphp
+                            <span class="color-warning">{{ $otH }}h {{ $otM }}m</span>
+                        @else
+                            -
+                        @endif
+                    </td>
+                    <td>
+                        @php
+                            $totH = floor($attendance->total_hours ?? 0);
+                            $totM = round((($attendance->total_hours ?? 0) - $totH) * 60);
+                        @endphp
+                        <strong>{{ $totH }}h {{ $totM }}m</strong>
+                    </td>
+                    <td>
+                        @if($isExtraDay)
+                            @if($attendance->status == 'present')
+                                <span class="badge badge-info">Present (Extra)</span>
+                            @elseif($attendance->status == 'half_day')
+                                <span class="badge badge-info">Half Day (Extra)</span>
+                            @endif
+                        @elseif($attendance->status == 'present')
                             <span class="badge badge-success">Present</span>
                         @elseif($attendance->status == 'absent')
-                            <span class="badge badge-danger">Absent</span>
+                            @if($isSunday)
+                                <span class="badge badge-secondary">Sunday (Off)</span>
+                            @else
+                                <span class="badge badge-danger">Absent</span>
+                            @endif
+                        @elseif($attendance->status == 'half_day')
+                            <span class="badge badge-warning">Half Day</span>
                         @elseif($attendance->status == 'leave')
                             <span class="badge badge-info">Leave</span>
+                        @elseif($attendance->status == 'holiday')
+                            <span class="badge badge-info">Holiday</span>
                         @else
-                            <span class="badge badge-warning">{{ ucfirst($attendance->status) }}</span>
+                            <span class="badge badge-secondary">{{ ucfirst($attendance->status) }}</span>
                         @endif
                     </td>
                     <td>{{ $attendance->notes ?? '-' }}</td>
@@ -259,11 +329,42 @@
                 </tr>
             @endforelse
         </tbody>
+
+        {{-- Totals Row --}}
+        @if($attendances->count() > 0)
+            <tfoot>
+                <tr style="background: #f8f9fa; font-weight: bold;">
+                    <td colspan="5" style="text-align: right; padding-right: 5px;">Totals</td>
+                    <td>
+                        @php
+                            $regH = floor($stats['regular_hours']);
+                            $regM = round(($stats['regular_hours'] - $regH) * 60);
+                        @endphp
+                        {{ $regH }}h {{ $regM }}m
+                    </td>
+                    <td>
+                        @php
+                            $otH = floor($stats['overtime_hours']);
+                            $otM = round(($stats['overtime_hours'] - $otH) * 60);
+                        @endphp
+                        <span class="color-warning">{{ $otH }}h {{ $otM }}m</span>
+                    </td>
+                    <td>
+                        @php
+                            $totH = floor($stats['total_hours']);
+                            $totM = round(($stats['total_hours'] - $totH) * 60);
+                        @endphp
+                        <strong>{{ $totH }}h {{ $totM }}m</strong>
+                    </td>
+                    <td colspan="2"></td>
+                </tr>
+            </tfoot>
+        @endif
     </table>
 
     <div class="footer">
         <p><strong>© {{ date('Y') }} Voltronix HRM System</strong> | HR Department</p>
-        <p>Hours: 8:00 AM - 6:00 PM | OT: After 6:00 PM | Late: After 8:00 AM</p>
+        <p>Working Days: Mon-Sat (8:00 AM - 6:00 PM) | Extra Days: Sundays + Holidays worked | OT: After 6:00 PM + Extra Days | Late: After 8:00 AM</p>
     </div>
 </body>
 

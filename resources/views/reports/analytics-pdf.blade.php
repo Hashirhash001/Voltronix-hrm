@@ -273,7 +273,7 @@
             <p>{{ \Carbon\Carbon::parse($start_date)->format('d M Y') }} to
                 {{ \Carbon\Carbon::parse($end_date)->format('d M Y') }} | Active Employees: {{ $active_employee_count }}
                 | Records: {{ count($employee_reports ?? []) }}</p>
-            <p>Generated: {{ now()->format('d M Y, h:i A') }}</p>
+            <p>Working Days: {{ $total_working_days }} (Mon-Sat) | Extra Days: {{ $total_extra_days ?? 0 }} (Sun+Holidays) | Generated: {{ now()->format('d M Y, h:i A') }}</p>
         </div>
     </div>
 
@@ -281,9 +281,12 @@
         <div
             class="score {{ $team_efficiency >= 90 ? 'color-success' : ($team_efficiency >= 75 ? 'color-warning' : 'color-danger') }}">
             {{ $team_efficiency }}%
+            @if($team_efficiency > 100)
+                <span style="font-size: 14px;">⭐</span>
+            @endif
         </div>
         <div class="label">Overall Team Efficiency</div>
-        <div class="note">Across {{ $active_employee_count }} active employees (excluding admins)</div>
+        <div class="note">Across {{ $active_employee_count }} active employees (excluding admins) • Maximum: 110% with bonuses</div>
     </div>
 
     <div class="summary">
@@ -308,7 +311,11 @@
                 </div>
                 <div class="summary-item">
                     <strong class="color-warning">{{ $total_late_entries }}</strong>
-                    <p>Late</p>
+                    <p>Late Entries</p>
+                </div>
+                <div class="summary-item">
+                    <strong class="color-info">{{ $total_extra_days ?? 0 }}</strong>
+                    <p>Extra Days</p>
                 </div>
                 <div class="summary-item">
                     <strong>{{ $total_required_hours_formatted ?? '0h 00m' }}</strong>
@@ -346,14 +353,19 @@
                     <strong>{{ $report['employee']->employee_name }}</strong>
                     ({{ $report['employee']->staff_number }})
                 </div>
-                <div class="efficiency">Eff: {{ $report['work_efficiency'] }}%</div>
+                <div class="efficiency">
+                    Eff: {{ $report['work_efficiency'] }}%
+                    @if($report['work_efficiency'] > 100)
+                        ⭐
+                    @endif
+                </div>
             </div>
             <div class="employee-body">
                 <div class="stats-grid">
                     <div class="stats-row">
                         <div class="stat-box">
                             <strong>{{ $report['present_count'] }}/{{ $report['total_working_days'] }}</strong>
-                            <p>Present/Total Days</p>
+                            <p>Present/Work Days</p>
                         </div>
                         <div class="stat-box">
                             <strong class="color-success">{{ $report['attendance_percentage'] }}%</strong>
@@ -372,8 +384,14 @@
                             <p>Late</p>
                         </div>
                         <div class="stat-box">
-                            <strong>{{ $report['total_hours_formatted'] ?? '0h 00m' }} / {{ $report['required_hours_formatted'] ?? '0h 00m' }}</strong>
-                            <p>Actual / Required</p>
+                            <strong class="color-info">{{ $report['extra_days_count'] ?? 0 }}</strong>
+                            <p>Extra Days</p>
+                            <p style="font-size: 4px;">({{ $report['extra_days_hours_formatted'] ?? '0h 00m' }})</p>
+                        </div>
+                        <div class="stat-box">
+                            <strong>{{ $report['total_hours_formatted'] ?? '0h 00m' }}</strong>
+                            <p>/ {{ $report['required_hours_formatted'] ?? '0h 00m' }}</p>
+                            <p style="font-size: 4px;">Actual/Required</p>
                         </div>
                         <div class="stat-box">
                             <strong class="color-warning">{{ $report['overtime_hours_formatted'] ?? '0h 00m' }}</strong>
@@ -418,7 +436,8 @@
 
     <div class="footer">
         <p><strong>© {{ date('Y') }} Voltronix HRM System</strong> | HR Department</p>
-        <p>Hours: 8:00 AM - 6:00 PM | OT: After 6:00 PM | Late: After 8:00 AM</p>
+        <p>Working Days: Mon-Sat (8:00 AM - 6:00 PM) | Extra Days: Sundays + Holidays worked | OT: After 6:00 PM + Extra Days | Late: After 8:00 AM</p>
+        <p>Efficiency Calculation: Attendance (40%) + Work Hours (30%) + Punctuality (20%) - Absences (10%) + Overtime Bonus (5%) + Extra Days Bonus (5%)</p>
     </div>
 </body>
 

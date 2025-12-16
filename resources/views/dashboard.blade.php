@@ -267,8 +267,8 @@
                                 </div>
                                 <p class="text-xs text-white-dark">
                                     {{ $attendance->attendance_date->format('d M Y') }} •
-                                    {{ $attendance->check_in_time ? $attendance->check_in_time->format('h:i A') : '-' }} -
-                                    {{ $attendance->check_out_time ? $attendance->check_out_time->format('h:i A') : '-' }}
+                                    {{ $attendance->getFormattedCheckInTime() }} -
+                                    {{ $attendance->getFormattedCheckOutTime() }}
                                 </p>
                             </div>
                             <div class="text-right ml-3">

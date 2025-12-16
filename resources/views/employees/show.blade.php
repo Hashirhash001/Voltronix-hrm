@@ -332,7 +332,7 @@
             </div>
 
             <!-- Recent Attendance -->
-            <div class="panel lg:col-span-2">
+            {{-- <div class="panel lg:col-span-2">
                 <div class="mb-4 border-b border-white-light pb-4 dark:border-[#1b2e4b]">
                     <h5 class="text-lg font-semibold">Recent Attendance</h5>
                 </div>
@@ -352,8 +352,8 @@
                             @forelse($employee->attendances()->latest('attendance_date')->limit(10)->get() as $attendance)
                                 <tr>
                                     <td>{{ $attendance->attendance_date->format('d M Y') }}</td>
-                                    <td>{{ $attendance->check_in_time?->format('H:i') ?? '-' }}</td>
-                                    <td>{{ $attendance->check_out_time?->format('H:i') ?? '-' }}</td>
+                                    <td>{{ $attendance->getFormattedCheckInTime() }}</td>
+                                    <td>{{ $attendance->getFormattedCheckOutTime() }}</td>
                                     <td>{{ number_format($attendance->total_hours, 2) }}</td>
                                     <td>
                                         @if($attendance->overtime_hours > 0)
@@ -376,7 +376,7 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </div> --}}
         </div>
     </div>
 </div>

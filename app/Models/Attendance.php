@@ -26,10 +26,9 @@ class Attendance extends Model
         'is_late',
     ];
 
+    // Cast only attendance_date as date
     protected $casts = [
         'attendance_date' => 'date',
-        'check_in_time' => 'datetime',
-        'check_out_time' => 'datetime',
         'regular_hours' => 'decimal:2',
         'overtime_hours' => 'decimal:2',
         'total_hours' => 'decimal:2',
@@ -37,8 +36,7 @@ class Attendance extends Model
         'is_late' => 'boolean',
     ];
 
-    // Append computed attributes
-    protected $appends = ['late_status'];
+    protected $appends = ['late_status', 'check_in_carbon', 'check_out_carbon'];
 
     public function employee()
     {
@@ -51,82 +49,74 @@ class Attendance extends Model
     }
 
     /**
-     * Calculate hours, overtime, and late entry
-     * Working hours: 8 AM - 6 PM (10 hours standard)
+     * Get check_in_time as Carbon instance for formatting
+     */
+    public function getCheckInCarbonAttribute()
+    {
+        return $this->check_in_time ? Carbon::parse($this->check_in_time) : null;
+    }
+
+    /**
+     * Get check_out_time as Carbon instance for formatting
+     */
+    public function getCheckOutCarbonAttribute()
+    {
+        return $this->check_out_time ? Carbon::parse($this->check_out_time) : null;
+    }
+
+    /**
+     * Calculate hours and overtime
+     * Standard working hours: 10 hours (8 AM to 6 PM)
      * After 6 PM = Overtime
-     * After 8 AM check-in = Late
+     * ✅ ALL SUNDAY WORK = OVERTIME
      */
     public function calculateHours()
     {
         if (!$this->check_in_time || !$this->check_out_time) {
-            $this->regular_hours = 0;
-            $this->overtime_hours = 0;
-            $this->total_hours = 0;
-            $this->late_minutes = 0;
-            $this->is_late = false;
-            $this->save();
+            $this->update([
+                'total_hours' => 0,
+                'regular_hours' => 0,
+                'overtime_hours' => 0,
+            ]);
             return;
         }
 
         $checkIn = Carbon::parse($this->check_in_time);
         $checkOut = Carbon::parse($this->check_out_time);
 
-        // Define work schedule: 8 AM to 6 PM (standard 10-hour workday)
-        $workStart = Carbon::parse($this->attendance_date)->setTime(8, 0, 0);
-        $workEnd = Carbon::parse($this->attendance_date)->setTime(18, 0, 0);
+        $totalMinutes = $checkIn->diffInMinutes($checkOut);
+        $totalHours = round($totalMinutes / 60, 2);
 
-        // Calculate late entry (if checked in after 8 AM)
-        if ($checkIn->greaterThan($workStart)) {
-            $this->late_minutes = $checkIn->diffInMinutes($workStart);
-            $this->is_late = true;
+        // ✅ Check if this is Sunday work
+        $isSunday = Carbon::parse($this->attendance_date)->dayOfWeek === Carbon::SUNDAY;
+
+        if ($isSunday) {
+            // ALL hours on Sunday are overtime
+            $this->update([
+                'total_hours' => $totalHours,
+                'regular_hours' => 0,
+                'overtime_hours' => $totalHours,
+            ]);
         } else {
-            $this->late_minutes = 0;
-            $this->is_late = false;
+            // Regular Mon-Sat calculation
+            $regularHours = min($totalHours, 10);
+            $overtimeHours = max(0, $totalHours - 10);
+
+            $this->update([
+                'total_hours' => $totalHours,
+                'regular_hours' => $regularHours,
+                'overtime_hours' => $overtimeHours,
+            ]);
         }
-
-        // Calculate hours worked
-        $totalMinutesWorked = $checkIn->diffInMinutes($checkOut);
-        $hoursWorked = $totalMinutesWorked / 60;
-
-        // Split into regular hours and overtime
-        if ($checkOut->lessThanOrEqualTo($workEnd)) {
-            // Left before or at 6 PM - no overtime
-            $this->regular_hours = $hoursWorked;
-            $this->overtime_hours = 0;
-        } else {
-            // Worked past 6 PM - calculate overtime
-            // Regular hours = hours worked up to 6 PM
-            $minutesUntilWorkEnd = $checkIn->diffInMinutes($workEnd);
-            $this->regular_hours = max(0, $minutesUntilWorkEnd / 60);
-
-            // Overtime = hours worked after 6 PM
-            $this->overtime_hours = $workEnd->diffInMinutes($checkOut) / 60;
-        }
-
-        // Deduct late time from regular hours (not from overtime)
-        if ($this->is_late && $this->regular_hours > 0) {
-            $lateHours = $this->late_minutes / 60;
-            $this->regular_hours = max(0, $this->regular_hours - $lateHours);
-        }
-
-        // Total hours = regular + overtime
-        $this->total_hours = $this->regular_hours + $this->overtime_hours;
-
-        $this->save();
     }
 
-    // Check if has overtime
     public function hasOvertime()
     {
         return $this->overtime_hours > 0;
     }
 
-    /**
-     * Get late entry status text
-     */
     public function getLateStatusAttribute()
     {
-        // Check if late_minutes column exists
         if (!isset($this->attributes['late_minutes']) || !isset($this->attributes['is_late'])) {
             return 'On Time';
         }
@@ -145,6 +135,46 @@ class Attendance extends Model
         return "Late by {$minutes}m";
     }
 
+    public function getFormattedTotalHours()
+    {
+        if (!$this->total_hours) {
+            return '0h 0m';
+        }
+
+        $hours = floor($this->total_hours);
+        $minutes = round(($this->total_hours - $hours) * 60);
+
+        return "{$hours}h {$minutes}m";
+    }
+
+    public function getFormattedOvertimeHours()
+    {
+        if (!$this->overtime_hours) {
+            return '0h 0m';
+        }
+
+        $hours = floor($this->overtime_hours);
+        $minutes = round(($this->overtime_hours - $hours) * 60);
+
+        return "{$hours}h {$minutes}m";
+    }
+
+    /**
+     * Format check in time for display
+     */
+    public function getFormattedCheckInTime()
+    {
+        return $this->check_in_carbon ? $this->check_in_carbon->format('h:i A') : '-';
+    }
+
+    /**
+     * Format check out time for display
+     */
+    public function getFormattedCheckOutTime()
+    {
+        return $this->check_out_carbon ? $this->check_out_carbon->format('h:i A') : '-';
+    }
+
     /**
      * Check if employee should be marked on leave
      * Based on work schedule (Mon-Sat)
@@ -161,22 +191,6 @@ class Attendance extends Model
 
         // Mon-Sat are working days
         return true;
-    }
-
-    /**
-     * Format hours and minutes (e.g., "8h 30m")
-     */
-    public function getFormattedTotalHours()
-    {
-        return $this->formatHoursMinutes($this->total_hours);
-    }
-
-    /**
-     * Format overtime hours and minutes
-     */
-    public function getFormattedOvertimeHours()
-    {
-        return $this->formatHoursMinutes($this->overtime_hours);
     }
 
     /**
