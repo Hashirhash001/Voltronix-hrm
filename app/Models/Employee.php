@@ -5,6 +5,7 @@ namespace App\Models;
 
 use Illuminate\Support\Carbon;
 use App\Models\EmployeeDocument;
+use App\Models\EmployeeVacation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -15,6 +16,7 @@ class Employee extends Model
     protected $fillable = [
         'user_id',
         'staff_number',
+        'employee_image',
         'employee_name',
         'designation',
         'qualification',
@@ -27,7 +29,6 @@ class Employee extends Model
         'current_age',
         'duty_joined_date',
         'duty_end_date',
-        'last_vacation_date',
         'basic_salary',
         'allowance',
         'fixed_salary',
@@ -57,13 +58,14 @@ class Employee extends Model
         'workman_insurance_document',
         'remarks',
         'status',
+        'termination_date',
+        'resignation_date',
     ];
 
     protected $casts = [
         'date_of_birth' => 'date',
         'duty_joined_date' => 'date',
         'duty_end_date' => 'date',
-        'last_vacation_date' => 'date',
         'increment_date' => 'date',
         'passport_expiry_date' => 'date',
         'visa_expiry_date' => 'date',
@@ -81,6 +83,8 @@ class Employee extends Model
         'fixed_salary' => 'decimal:2',
         'total_salary' => 'decimal:2',
         'recent_increment_amount' => 'decimal:2',
+        'termination_date' => 'date',
+        'resignation_date' => 'date',
     ];
 
     /**
@@ -99,6 +103,11 @@ class Employee extends Model
     public function overtimeRecords()
     {
         return $this->hasMany(OvertimeRecord::class);
+    }
+
+    public function vacations()
+    {
+        return $this->hasMany(EmployeeVacation::class);
     }
 
     /**

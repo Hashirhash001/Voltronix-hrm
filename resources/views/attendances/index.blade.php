@@ -227,13 +227,14 @@
                         <th>Check In</th>
                         <th>Check Out</th>
                         <th>Total Hours</th>
+                        <th>OT > 12 AM</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="attendance-tbody">
                     <tr id="loading-row">
-                        <td colspan="8" class="text-center py-10">
+                        <td colspan="9" class="text-center py-10">
                             <div class="flex flex-col items-center justify-center">
                                 <div class="loader"></div>
                                 <p class="mt-4 text-white-dark font-semibold">Loading attendance records...</p>
@@ -254,18 +255,19 @@
 </div>
 
 <!-- Bulk Generate Modal -->
-<div id="bulk-modal" class="modal-overlay" style="display: none;">
+<div id="bulk-modal" class="modal-overlay" style="display: none">
     <div class="modal-container">
         <div class="modal-header">
             <h3 class="text-xl font-semibold dark:text-white-light">Bulk Generate Attendance</h3>
             <button class="modal-close" data-modal="bulk-modal">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
 
         <div class="modal-body">
+            <!-- Date and Status -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                     <label class="block text-sm font-semibold mb-2">Date</label>
@@ -283,6 +285,7 @@
                 </div>
             </div>
 
+            <!-- Time Fields -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" id="bulk-time-fields">
                 <div>
                     <label class="block text-sm font-semibold mb-2">Check-In Time</label>
@@ -294,43 +297,39 @@
                 </div>
             </div>
 
+            <!-- Notes -->
             <div class="mb-4">
                 <label class="block text-sm font-semibold mb-2">Notes (Optional)</label>
                 <textarea id="bulk-notes" rows="2" class="form-textarea" placeholder="Add any notes..."></textarea>
             </div>
 
-            <div>
-                <div class="flex items-center justify-between mb-3">
-                    <label class="block text-sm font-semibold">Select Employees</label>
-                    <label class="flex items-center cursor-pointer">
-                        <input type="checkbox" id="bulk-select-all" checked class="form-checkbox mr-2">
-                        <span class="text-sm font-semibold text-primary">Select All</span>
-                    </label>
-                </div>
-
-                <div class="border border-white-light dark:border-[#1b2e4b] rounded-lg max-h-64 overflow-y-auto" id="employee-list">
-                    @foreach($employees as $employee)
-                        <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-[#1b2e4b] cursor-pointer border-b border-white-light dark:border-[#1b2e4b] last:border-b-0">
-                            <input type="checkbox" class="employee-checkbox form-checkbox mr-3" value="{{ $employee->id }}" checked>
-                            <div class="flex-1">
-                                <p class="font-semibold text-sm">{{ $employee->employee_name }}</p>
-                                <p class="text-xs text-white-dark">{{ $employee->staff_number }} • {{ $employee->designation }}</p>
-                            </div>
-                        </label>
-                    @endforeach
-                </div>
-
-                <p class="text-xs text-white-dark mt-2">
-                    <span id="selected-count">{{ count($employees) }}</span> of {{ count($employees) }} employees selected
-                </p>
+            <!-- Employee Selection Header -->
+            <div class="flex items-center justify-between mb-3">
+                <label class="block text-sm font-semibold">Select Employees</label>
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" id="bulk-select-all" checked class="form-checkbox mr-2">
+                    <span class="text-sm font-semibold text-primary">Select All</span>
+                </label>
             </div>
+
+            <!-- Info Container (for already marked message) -->
+            <div id="already-marked-info"></div>
+
+            <!-- Employee List -->
+            <div class="border border-white-light dark:border-[#1b2e4b] rounded-lg max-h-64 overflow-y-auto" id="employee-list">
+                <!-- Employees will be loaded dynamically -->
+            </div>
+
+            <p class="text-xs text-white-dark mt-2">
+                <span id="selected-count">0</span> of <span id="selected-total">0</span> employees selected
+            </p>
         </div>
 
         <div class="modal-footer">
             <button class="btn btn-outline-secondary modal-close" data-modal="bulk-modal">Cancel</button>
             <button id="btn-generate-bulk" class="btn btn-primary">
                 <svg class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
                 Generate Attendance
             </button>
@@ -440,8 +439,8 @@
                 <div class="mb-4">
                     <label class="block text-sm font-semibold mb-2">Format</label>
                     <select id="export-format" class="form-select" required>
-                        <option value="csv">CSV</option>
                         <option value="pdf">PDF</option>
+                        <option value="csv">CSV</option>
                     </select>
                 </div>
             </div>
@@ -546,9 +545,16 @@
             });
 
             // Modal triggers
-            $('#btn-bulk-generate').on('click', function () {
-                resetBulkForm();
+            $('#btn-bulk-generate').on('click', function() {
+                const selectedDate = $('#bulk-date').val() || '{{ date("Y-m-d") }}';
+                loadAvailableEmployees(selectedDate);
                 openModal('#bulk-modal');
+            });
+
+            // Load available employees when date changes
+            $('#bulk-date').on('change', function() {
+                const selectedDate = $(this).val();
+                loadAvailableEmployees(selectedDate);
             });
 
             $('#btn-create').on('click', function () {
@@ -661,6 +667,124 @@
                     $('html, body').animate({
                         scrollTop: $('#attendance-table').offset().top - 100
                     }, 300);
+                }
+            });
+        }
+
+        // Function to load available employees for the selected date
+        function loadAvailableEmployees(date) {
+            const employeeList = $('#employee-list');
+            const selectAllCheckbox = $('#bulk-select-all');
+            const selectedCount = $('#selected-count');
+            const generateButton = $('#btn-generate-bulk');
+            const alreadyMarkedInfo = $('#already-marked-info'); // Container for info messages
+
+            // Show loading state
+            employeeList.html(`
+                <div class="flex items-center justify-center p-4">
+                    <div class="loader"></div>
+                    <p class="ml-3 text-white-dark">Loading available employees...</p>
+                </div>
+            `);
+
+            // Clear previous info messages
+            alreadyMarkedInfo.empty();
+
+            $.ajax({
+                url: '{{ route("employees.available-for-date") }}',
+                method: 'GET',
+                data: { date: date },
+                success: function(response) {
+                    if (response.success) {
+                        const employees = response.employees;
+
+                        // Clear any existing info messages before adding new ones
+                        alreadyMarkedInfo.empty();
+
+                        if (employees.length === 0) {
+                            // ALL EMPLOYEES ALREADY MARKED
+                            employeeList.html(`
+                                <div class="p-6 text-center">
+                                    <svg class="h-12 w-12 mx-auto text-warning mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                    </svg>
+                                    <p class="text-white-dark font-semibold mb-2">All employees already marked for ${date}</p>
+                                    <p class="text-xs text-white-dark">Total marked: ${response.total_already_marked}</p>
+                                </div>
+                            `);
+
+                            // Disable controls
+                            selectAllCheckbox.prop('checked', false).prop('disabled', true);
+                            generateButton.prop('disabled', true);
+                            selectedCount.text('0');
+                            $('#selected-total').text('0');
+                            return;
+                        }
+
+                        // SOME EMPLOYEES AVAILABLE
+                        // Enable select all
+                        selectAllCheckbox.prop('disabled', false).prop('checked', true);
+                        generateButton.prop('disabled', false);
+
+                        // Build employee list
+                        let html = '';
+                        employees.forEach(employee => {
+                            html += `
+                                <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-[#1b2e4b] cursor-pointer border-b border-white-light dark:border-[#1b2e4b] last:border-b-0">
+                                    <input type="checkbox" class="employee-checkbox form-checkbox mr-3" value="${employee.id}" checked>
+                                    <div class="flex-1">
+                                        <p class="font-semibold text-sm">${employee.employee_name}</p>
+                                        <p class="text-xs text-white-dark">${employee.staff_number} • ${employee.designation || 'N/A'}</p>
+                                    </div>
+                                </label>
+                            `;
+                        });
+
+                        employeeList.html(html);
+
+                        // Update counts
+                        selectedCount.text(employees.length);
+                        $('#selected-total').text(employees.length);
+
+                        // Show info message ONLY ONCE if some employees are already marked
+                        if (response.total_already_marked > 0) {
+                            alreadyMarkedInfo.html(`
+                                <div class="bg-info/10 border border-info rounded p-3 mb-3">
+                                    <div class="flex items-start gap-2">
+                                        <svg class="h-5 w-5 text-info flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <div class="flex-1">
+                                            <p class="text-sm text-info font-semibold">
+                                                ${response.total_already_marked} employee(s) already marked for this date
+                                            </p>
+                                            <p class="text-xs text-info/80 mt-1">
+                                                Showing ${employees.length} available employee(s)
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            `);
+                        }
+
+                        // Re-attach change listeners
+                        updateSelectedCount();
+                    }
+                },
+                error: function(xhr) {
+                    employeeList.html(`
+                        <div class="p-6 text-center text-danger">
+                            <svg class="h-12 w-12 mx-auto text-danger mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <p class="font-semibold mb-2">Failed to load employees</p>
+                            <p class="text-xs">${xhr.responseJSON?.message || 'Unknown error occurred'}</p>
+                        </div>
+                    `);
+
+                    selectAllCheckbox.prop('checked', false).prop('disabled', true);
+                    generateButton.prop('disabled', true);
+                    alreadyMarkedInfo.empty();
                 }
             });
         }
@@ -888,10 +1012,10 @@
             const tbody = $('#attendance-tbody');
             tbody.find('tr:not(#loading-row)').remove();
 
-            if (attendances.length === 0) {
+            if (!attendances || attendances.length === 0) {
                 tbody.append(`
                     <tr>
-                        <td colspan="8" class="text-center py-10">
+                        <td colspan="9" class="text-center py-10">
                             <p class="text-white-dark">No attendance records found</p>
                         </td>
                     </tr>
@@ -907,22 +1031,17 @@
                 holiday: 'text-secondary'
             };
 
-            // Extract time from various formats
             const extractTime = (datetime) => {
                 if (!datetime) return '';
-
                 const datetimeStr = typeof datetime === 'object' ? JSON.stringify(datetime) : String(datetime);
 
-                // Format: "YYYY-MM-DD HH:MM:SS"
+                // "YYYY-MM-DD HH:MM:SS"
                 if (datetimeStr.includes(' ')) {
                     const parts = datetimeStr.split(' ');
-                    if (parts.length === 2) {
-                        const timePart = parts[1];
-                        return timePart.substring(0, 5); // HH:MM
-                    }
+                    if (parts.length === 2) return parts[1].substring(0, 5);
                 }
 
-                // ISO format: "2025-12-16T08:00:00.000000Z"
+                // ISO "2025-12-16T08:00:00.000000Z"
                 if (datetimeStr.includes('T')) {
                     try {
                         const date = new Date(datetimeStr);
@@ -935,66 +1054,98 @@
                     }
                 }
 
-                // Already HH:MM or HH:MM:SS
-                if (datetimeStr.match(/\d{2}:\d{2}/)) {
-                    return datetimeStr.substring(0, 5);
-                }
+                // "HH:MM" or "HH:MM:SS"
+                if (datetimeStr.match(/\d{2}:\d{2}/)) return datetimeStr.substring(0, 5);
 
                 console.warn('Unknown datetime format:', datetimeStr);
                 return '';
+            };
+
+            const formatDecimalHours = (hours) => {
+                const h = parseFloat(hours || 0);
+                const hh = Math.floor(h);
+                const mm = Math.round((h - hh) * 60);
+                return `${hh}h ${mm}m`;
             };
 
             attendances.forEach(attendance => {
                 const checkInValue = extractTime(attendance.check_in_time);
                 const checkOutValue = extractTime(attendance.check_out_time);
 
+                const toMinutes = (t) => {
+                    if (!t) return null;
+                    const [h, m] = String(t).substring(0,5).split(':').map(Number);
+                    return h * 60 + m;
+                };
+
+                const inMin = toMinutes(checkInValue);
+                const outMin = toMinutes(checkOutValue);
+
+                const isNextDay =
+                inMin !== null && outMin !== null && outMin < inMin;
+
+
+                console.log('row', attendance.id, attendance.check_in_time, attendance.check_out_time, attendance.is_checkout_next_day);
+
+
                 const row = `
                     <tr>
                         <td>${formatDate(attendance.attendance_date)}</td>
-                        <td>${attendance.staff_number}</td>
+                        <td>${attendance.staff_number ?? ''}</td>
                         <td>
                             <span class="font-semibold">${attendance.employee?.employee_name ?? 'N/A'}</span>
                         </td>
+
                         <td>
                             <input type="time"
-                                   class="form-input w-32 quick-update-time"
-                                   data-id="${attendance.id}"
-                                   data-field="check_in_time"
-                                   value="${checkInValue}"
-                                   placeholder="--:--">
+                                class="form-input w-32 quick-update-time"
+                                data-id="${attendance.id}"
+                                data-field="check_in_time"
+                                value="${checkInValue}"
+                                placeholder="--:--">
                         </td>
+
                         <td>
-                            <input type="time"
-                                   class="form-input w-32 quick-update-time"
-                                   data-id="${attendance.id}"
-                                   data-field="check_out_time"
-                                   value="${checkOutValue}"
-                                   placeholder="--:--">
+                            <div class="flex items-center">
+                                <input type="time"
+                                    class="form-input w-32 quick-update-time"
+                                    data-id="${attendance.id}"
+                                    data-field="check_out_time"
+                                    value="${checkOutValue}"
+                                    placeholder="--:--">
+                                ${isNextDay ? `<span class="next-day-badge">+next day</span>` : ``}
+                            </div>
                         </td>
+
                         <td>
                             <span class="font-semibold">${attendance.formatted_total_hours ?? '0h 0m'}</span>
-                            ${attendance.overtime_hours > 0
+                            ${parseFloat(attendance.overtime_hours || 0) > 0
                                 ? `<span class="badge bg-warning ml-1 text-xs">${attendance.formatted_overtime_hours} OT</span>`
                                 : ''}
                         </td>
+
+                        <td>
+                            <span class="font-semibold">${formatDecimalHours(attendance.overtime_after_midnight_hours)}</span>
+                        </td>
+
                         <td>
                             <select class="form-select w-32 quick-update-status ${statusColors[attendance.status] || ''}"
                                     data-id="${attendance.id}">
-                                <option value="present" ${attendance.status === 'present' ? 'selected' : ''}>Present</option>
-                                <option value="absent" ${attendance.status === 'absent' ? 'selected' : ''}>Absent</option>
+                                <option value="present"  ${attendance.status === 'present' ? 'selected' : ''}>Present</option>
+                                <option value="absent"   ${attendance.status === 'absent' ? 'selected' : ''}>Absent</option>
                                 <option value="half_day" ${attendance.status === 'half_day' ? 'selected' : ''}>Half Day</option>
-                                <option value="leave" ${attendance.status === 'leave' ? 'selected' : ''}>Leave</option>
-                                <option value="holiday" ${attendance.status === 'holiday' ? 'selected' : ''}>Holiday</option>
+                                <option value="leave"    ${attendance.status === 'leave' ? 'selected' : ''}>Leave</option>
+                                <option value="holiday"  ${attendance.status === 'holiday' ? 'selected' : ''}>Holiday</option>
                             </select>
                         </td>
+
                         <td>
                             <div class="flex gap-2">
-                                <button class="btn btn-sm btn-outline-danger btn-delete" data-id="${attendance.id}" title="Delete">
+                                <button class="btn btn-sm btn-outline-danger btn-delete"
+                                        data-id="${attendance.id}" title="Delete">
                                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5
-                                                 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0
-                                                 00-1 1v3M4 7h16" />
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
                                 </button>
                             </div>
@@ -1254,6 +1405,26 @@
             checkInInput.val(checkInValue);
             checkOutInput.val(checkOutValue);
 
+            // Update next-day badge
+            const checkoutContainer = checkOutInput.parent();
+            checkoutContainer.find('.next-day-badge').remove();
+
+            const toMinutes = (hhmm) => {
+                if (!hhmm) return null;
+                const [h, m] = String(hhmm).substring(0, 5).split(':').map(Number);
+                return h * 60 + m;
+            };
+
+            const inMin = toMinutes(checkInValue);
+            const outMin = toMinutes(checkOutValue);
+
+            const isNextDay = (inMin !== null && outMin !== null && outMin < inMin);
+
+            if (isNextDay) {
+                checkoutContainer.append(`<span class="next-day-badge">+next day</span>`);
+            }
+
+
             // Update total hours cell
             const totalHoursCell = row.find('td').eq(5);
             let totalHoursHtml = `<span class="font-semibold">${attendance.formatted_total_hours ?? '0h 0m'}</span>`;
@@ -1261,6 +1432,19 @@
                 totalHoursHtml += `<span class="badge bg-warning ml-1 text-xs">${attendance.formatted_overtime_hours} OT</span>`;
             }
             totalHoursCell.html(totalHoursHtml);
+
+            // Update OT > 12 AM cell (column index 6)
+            const formatDecimalHours = (hours) => {
+            const h = parseFloat(hours || 0);
+            const hh = Math.floor(h);
+            const mm = Math.round((h - hh) * 60);
+            return `${hh}h ${mm}m`;
+            };
+
+            const midnightOtCell = row.find('td').eq(6);
+            midnightOtCell.html(
+            `<span class="font-semibold">${formatDecimalHours(attendance.overtime_after_midnight_hours)}</span>`
+            );
 
             // Update status dropdown
             const statusSelect = row.find('.quick-update-status');
@@ -1334,8 +1518,21 @@
             });
         }
 
-        // BULK GENERATE ATTENDANCE
+        // GENERATE BULK ATTENDANCE - WITH BUTTON DISABLE
         function generateBulkAttendance() {
+            const button = $('#btn-generate-bulk');
+            const originalHtml = button.html();
+
+            // Disable button immediately
+            button.prop('disabled', true);
+            button.html(`
+                <svg class="animate-spin h-5 w-5 mr-2 inline" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processing...
+            `);
+
             const selectedEmployees = $('.employee-checkbox:checked').map(function () {
                 return $(this).val();
             }).get();
@@ -1344,29 +1541,22 @@
                 Swal.fire({
                     icon: 'warning',
                     title: 'No Employees Selected',
-                    text: 'Please select at least one employee',
-                    confirmButtonColor: '#3085d6'
+                    text: 'Please select at least one employee'
                 });
+                // Re-enable button
+                button.prop('disabled', false);
+                button.html(originalHtml);
                 return;
             }
 
             const data = {
                 date: $('#bulk-date').val(),
                 status: $('#bulk-status').val(),
-                check_in_time: $('#bulk-check-in').val(),
-                check_out_time: $('#bulk-check-out').val(),
+                check_in_time: $('#bulk-check-in').val() || null,
+                check_out_time: $('#bulk-check-out').val() || null,
                 employee_ids: selectedEmployees,
                 notes: $('#bulk-notes').val()
             };
-
-            Swal.fire({
-                title: 'Generating Attendance...',
-                text: 'Please wait',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
 
             $.ajax({
                 url: "{{ route('attendances.generate-today') }}",
@@ -1382,16 +1572,18 @@
                         Swal.fire({
                             icon: 'success',
                             title: 'Success!',
-                            html: `<p>${response.message}</p>
-                                   <p class="text-sm text-gray-600 mt-2">
-                                        <strong>${response.created || 0}</strong> records created
-                                        ${response.skipped ? `<br><strong>${response.skipped}</strong> records skipped` : ''}
-                                   </p>`,
-                            confirmButtonColor: '#3085d6'
+                            html: `
+                                <p>${response.message}</p>
+                                <p class="text-sm mt-2">
+                                    <strong>Created:</strong> ${response.created} records<br>
+                                    ${response.skipped > 0 ? `<strong>Skipped:</strong> ${response.skipped} records` : ''}
+                                </p>
+                            `,
+                            timer: 3000,
+                            showConfirmButton: false
                         });
                         closeModal('#bulk-modal');
-                        resetBulkForm();
-                        fetchAttendances();
+                        fetchAttendances(currentPage);
                     } else {
                         Swal.fire({
                             icon: 'error',
@@ -1408,6 +1600,143 @@
                         text: xhr.responseJSON?.message || 'Failed to generate attendance',
                         confirmButtonColor: '#d33'
                     });
+                },
+                complete: function() {
+                    // Re-enable button after completion (success or error)
+                    button.prop('disabled', false);
+                    button.html(originalHtml);
+                }
+            });
+        }
+
+        // EXPORT REPORT - IMPROVED VERSION
+        function exportReport() {
+            const startDate = $('#export-start').val();
+            const endDate = $('#export-end').val();
+            const format = $('#export-format').val();
+            const exportButton = $('#export-form button[type="submit"]');
+            const originalButtonHtml = exportButton.html();
+
+            if (new Date(endDate) < new Date(startDate)) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Invalid Date Range',
+                    text: 'End date must be after start date'
+                });
+                return;
+            }
+
+            // Disable export button
+            exportButton.prop('disabled', true);
+            exportButton.html(`
+                <svg class="animate-spin h-5 w-5 mr-2 inline" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Generating ${format.toUpperCase()}...
+            `);
+
+            const params = new URLSearchParams({
+                start_date: startDate,
+                end_date: endDate,
+                format: format
+            });
+
+            const employeeId = $('#export-employee').val();
+            if (employeeId) {
+                params.append('employee_id', employeeId);
+            }
+
+            // Show loading modal
+            Swal.fire({
+                title: `Generating ${format.toUpperCase()} Report...`,
+                html: `
+                    <div class="flex flex-col items-center">
+                        <div class="loader mb-4"></div>
+                        <p class="text-sm text-gray-600">Please wait while we prepare your report</p>
+                        <p class="text-xs text-gray-500 mt-2">Period: ${startDate} to ${endDate}</p>
+                    </div>
+                `,
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Use AJAX to download file
+            $.ajax({
+                url: "{{ route('attendances.report.export') }}",
+                type: 'GET',
+                data: {
+                    start_date: startDate,
+                    end_date: endDate,
+                    format: format,
+                    employee_id: employeeId || null
+                },
+                xhrFields: {
+                    responseType: 'blob'
+                },
+                success: function(data, status, xhr) {
+                    // Create blob from response
+                    const blob = new Blob([data], {
+                        type: format === 'pdf' ? 'application/pdf' : 'text/csv'
+                    });
+
+                    // Get filename from header or create one
+                    const contentDisposition = xhr.getResponseHeader('Content-Disposition');
+                    let filename = `attendance_report_${startDate}_to_${endDate}.${format}`;
+
+                    if (contentDisposition) {
+                        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+                        if (filenameMatch) {
+                            filename = filenameMatch[1];
+                        }
+                    }
+
+                    // Create download link
+                    const link = document.createElement('a');
+                    link.href = window.URL.createObjectURL(blob);
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(link.href);
+
+                    // Close modal and show success
+                    Swal.close();
+                    closeModal('#export-modal');
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Report Generated!',
+                        text: `Your ${format.toUpperCase()} has been downloaded successfully`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                },
+                error: function(xhr, status, error) {
+                    Swal.close();
+
+                    let errorMessage = 'Failed to generate report';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        errorMessage = response.message || errorMessage;
+                    } catch (e) {
+                        errorMessage = 'Server error: ' + xhr.status;
+                    }
+
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error!',
+                        text: errorMessage,
+                        confirmButtonColor: '#d33'
+                    });
+                },
+                complete: function() {
+                    // Re-enable button
+                    exportButton.prop('disabled', false);
+                    exportButton.html(originalButtonHtml);
                 }
             });
         }
@@ -1524,49 +1853,6 @@
             });
         }
 
-        // EXPORT REPORT
-        function exportReport() {
-            const startDate = $('#export-start').val();
-            const endDate = $('#export-end').val();
-
-            if (new Date(endDate) < new Date(startDate)) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Invalid Date Range',
-                    text: 'End date must be after start date'
-                });
-                return;
-            }
-
-            const params = new URLSearchParams({
-                start_date: startDate,
-                end_date: endDate,
-                format: $('#export-format').val()
-            });
-
-            const employeeId = $('#export-employee').val();
-            if (employeeId) {
-                params.append('employee_id', employeeId);
-            }
-
-            Swal.fire({
-                title: 'Generating Report...',
-                text: 'Please wait',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-
-            window.location.href = "{{ route('attendances.report.export') }}" + '?' + params.toString();
-
-            setTimeout(() => {
-                closeModal('#export-modal');
-                Swal.close();
-                showToast('success', 'Report exported successfully!');
-            }, 1500);
-        }
-
         // MODAL FUNCTIONS
         function openModal(modalId) {
             $(modalId).fadeIn(300);
@@ -1604,6 +1890,7 @@
             $('#selected-count').text(count);
         }
 
+        // Update the resetBulkForm function
         function resetBulkForm() {
             // Reset date to today
             $('#bulk-date').val('{{ date("Y-m-d") }}');
@@ -1618,15 +1905,13 @@
             // Clear notes
             $('#bulk-notes').val('');
 
-            // Reset employee selection
-            $('#bulk-select-all').prop('checked', true);
-            $('.employee-checkbox').prop('checked', true);
-            updateSelectedCount();
+            // Load employees for today
+            loadAvailableEmployees('{{ date("Y-m-d") }}');
 
-            // ✅ FIX: Trigger updateBulkTimeFields to show time fields for "present" status
+            // Trigger updateBulkTimeFields
             updateBulkTimeFields('present');
 
-            console.log('✅ Bulk form reset complete - time fields visible');
+            console.log('Bulk form reset complete');
         }
 
         function formatDate(date) {
@@ -1754,311 +2039,10 @@
             }, 3000);
         }
     </script>
+@endpush
 
-    <style>
-        /* Modal Styles */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 9999;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-        }
-
-        .modal-container {
-            position: relative;
-            width: 100%;
-            max-width: 48rem;
-            background-color: #ffffff;
-            border-radius: 0.5rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .dark .modal-container {
-            background-color: #0e1726;
-        }
-
-        .modal-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid #e0e6ed;
-            padding: 1.5rem;
-        }
-
-        .dark .modal-header {
-            border-color: #1b2e4b;
-        }
-
-        .modal-body {
-            padding: 1.5rem;
-        }
-
-        .modal-footer {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 0.75rem;
-            border-top: 1px solid #e0e6ed;
-            padding: 1.5rem;
-        }
-
-        .dark .modal-footer {
-            border-color: #1b2e4b;
-        }
-
-        .modal-close {
-            color: #888ea8;
-            transition: color 0.3s;
-        }
-
-        .modal-close:hover {
-            color: #0e1726;
-        }
-
-        .dark .modal-close:hover {
-            color: #ffffff;
-        }
-
-        /* Animations */
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .animate-fade-in {
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        .animate-spin {
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from {
-                transform: rotate(0deg);
-            }
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* Scrollbar */
-        .max-h-64::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .max-h-64::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-        }
-
-        .max-h-64::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 10px;
-        }
-
-        .dark .max-h-64::-webkit-scrollbar-track {
-            background: #1b2e4b;
-        }
-
-        .dark .max-h-64::-webkit-scrollbar-thumb {
-            background: #506690;
-        }
-
-        /* Row highlight */
-        .bg-yellow-50 {
-            background-color: #fff7d6;
-        }
-
-        .dark .bg-yellow-900\/20 {
-            background-color: rgba(113, 63, 18, 0.2);
-        }
-
-        tr {
-            transition: background-color 0.3s ease;
-        }
-
-        /* Select2 styles */
-        .select2-container {
-            font-size: 14px;
-        }
-
-        .select2-container--default .select2-selection--single {
-            height: 38px !important;
-            border: 1px solid #e0e6ed !important;
-            border-radius: 6px !important;
-            background-color: #fff !important;
-        }
-
-        .select2-container--default .select2-selection--single .select2-selection__rendered {
-            line-height: 36px !important;
-            padding-left: 12px !important;
-            color: #3b3f5c !important;
-        }
-
-        .select2-container--default .select2-selection--single .select2-selection__arrow {
-            height: 36px !important;
-            right: 8px !important;
-        }
-
-        .select2-container--default .select2-selection--single .select2-selection__placeholder {
-            color: #888ea8 !important;
-        }
-
-        .select2-dropdown {
-            border: 1px solid #e0e6ed !important;
-            border-radius: 6px !important;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
-        }
-
-        .select2-search--dropdown {
-            padding: 8px !important;
-        }
-
-        .select2-search--dropdown .select2-search__field {
-            border: 1px solid #e0e6ed !important;
-            border-radius: 4px !important;
-            padding: 6px 12px !important;
-            font-size: 14px !important;
-        }
-
-        .select2-results__option {
-            padding: 8px 12px !important;
-            font-size: 14px !important;
-        }
-
-        .select2-results__option--highlighted {
-            background-color: #4361ee !important;
-            color: white !important;
-        }
-
-        /* Dark Mode */
-        .dark .select2-container--default .select2-selection--single {
-            background-color: #1b2e4b !important;
-            border-color: #191e3a !important;
-        }
-
-        .dark .select2-container--default .select2-selection--single .select2-selection__rendered {
-            color: #bfc9d4 !important;
-        }
-
-        .dark .select2-dropdown {
-            background-color: #1b2e4b !important;
-            border-color: #191e3a !important;
-        }
-
-        .dark .select2-search--dropdown .select2-search__field {
-            background-color: #0e1726 !important;
-            border-color: #191e3a !important;
-            color: #bfc9d4 !important;
-        }
-
-        .dark .select2-results__option {
-            color: #bfc9d4 !important;
-            background-color: #1b2e4b !important;
-        }
-
-        .dark .select2-results__option--highlighted {
-            background-color: #4361ee !important;
-            color: white !important;
-        }
-
-        /* Focus State */
-        .select2-container--default.select2-container--focus .select2-selection--single {
-            border-color: #4361ee !important;
-            outline: none !important;
-        }
-
-        /* Clear Button */
-        .select2-container--default .select2-selection__clear {
-            font-size: 18px !important;
-            margin-right: 20px !important;
-            color: #e7515a !important;
-        }
-
-        .select2-container--default .select2-selection--single .select2-selection__clear {
-            margin-right: 26px !important;
-            margin-top: 4px !important;
-        }
-
-        /* Pagination Styles */
-        #pagination-list {
-            display: flex;
-            align-items: center;
-            gap: 0.375rem; /* 6px spacing between buttons */
-            flex-wrap: wrap;
-        }
-
-        #pagination-list li {
-            list-style: none;
-        }
-
-        .pagination-btn {
-            border: none;
-            outline: none;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .pagination-btn:disabled {
-            pointer-events: none;
-        }
-
-        .pagination-btn:not(:disabled):hover {
-            transform: translateY(-1px);
-        }
-
-        .pagination-btn:not(:disabled):active {
-            transform: translateY(0);
-        }
-
-        /* Smooth transitions */
-        .pagination-btn {
-            transition: all 0.2s ease-in-out;
-        }
-
-        /* Improved Loader Animation */
-        .loader {
-            width: 48px;
-            height: 48px;
-            border: 5px solid #e0e6ed;
-            border-bottom-color: #4361ee;
-            border-radius: 50%;
-            display: inline-block;
-            animation: rotation 1s linear infinite;
-        }
-
-        .dark .loader {
-            border-color: #191e3a;
-            border-bottom-color: #4361ee;
-        }
-
-        @keyframes rotation {
-            0% {
-                transform: rotate(0deg);
-            }
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* Remove old animate-spin if it conflicts */
-        .animate-spin {
-            animation: rotation 1s linear infinite !important;
-        }
-    </style>
+@push('styles')
+    <link rel="stylesheet" type="text/css" media="screen" href="{{ asset('assets/css/attendances-style.css') }}">
 @endpush
 
 @endsection

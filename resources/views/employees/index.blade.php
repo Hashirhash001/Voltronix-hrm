@@ -119,6 +119,7 @@
                 <table class="table-striped table-hover">
                     <thead>
                         <tr>
+                            <th>Image</th>
                             <th>Staff Number</th>
                             <th>Name</th>
                             <th>Designation</th>
@@ -133,6 +134,13 @@
                     </tbody>
                 </table>
             </div>
+            <div class="panel mt-4">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div id="pagination-info" class="text-sm text-white-dark"></div>
+                    <div id="pagination-controls" class="flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -141,43 +149,46 @@
 <script>
 $(function() {
     let filterTimeout = null;
+    let currentPage = 1;
 
-    // Load employees on page load
-    loadEmployees();
+    loadEmployees(1);
 
-    // Search filter with debounce
-    $('#filter-search').on('input', function() {
+    $('#filter-search').on('input', function () {
         clearTimeout(filterTimeout);
-        filterTimeout = setTimeout(() => {
-            loadEmployees();
-        }, 500);
+        filterTimeout = setTimeout(() => loadEmployees(1), 500);
     });
 
-    // Other filters
-    $('#filter-status, #filter-designation, #filter-salary').on('change', function() {
-        loadEmployees();
+    $('#filter-status, #filter-designation, #filter-salary').on('change', function () {
+        loadEmployees(1);
     });
 
-    // Reset filters
-    $('#reset-filters').on('click', function() {
+    $('#reset-filters').on('click', function () {
         $('#filter-search').val('');
         $('#filter-status').val('');
         $('#filter-designation').val('');
         $('#filter-salary').val('');
-        loadEmployees();
+        loadEmployees(1);
     });
 
-    // Load employees function
-    function loadEmployees() {
+    // pagination click (event delegation)
+    $(document).on('click', '.pagination-btn', function () {
+        const page = parseInt($(this).data('page'), 10);
+        if (!isNaN(page)) loadEmployees(page);
+    });
+
+    function loadEmployees(page = 1) {
+        currentPage = page;
+
         const params = {
             search: $('#filter-search').val(),
             status: $('#filter-status').val(),
             designation: $('#filter-designation').val(),
             min_salary: $('#filter-salary').val(),
+            page: currentPage,
+            per_page: 10,
             ajax: true
         };
 
-        // Show loading
         $('#loading-indicator').show();
         $('#employees-table').hide();
 
@@ -186,47 +197,52 @@ $(function() {
             type: 'GET',
             data: params,
             dataType: 'json',
-            success: function(response) {
-                renderEmployees(response.employees);
+            success: function (response) {
+                renderEmployees(response.employees || []);
+                renderPagination(response.pagination || null);
             },
-            error: function(xhr, status, error) {
-                console.error('Error loading employees:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'Failed to load employees. Please try again.'
-                });
+            error: function () {
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load employees. Please try again.' });
             },
-            complete: function() {
+            complete: function () {
                 $('#loading-indicator').hide();
                 $('#employees-table').show();
             }
         });
     }
 
-    // Render employees in table
     function renderEmployees(employees) {
         const tbody = $('#employees-tbody');
         tbody.empty();
 
-        if (employees.length === 0) {
+        if (!employees.length) {
             tbody.append(`
                 <tr>
-                    <td colspan="7" class="text-center py-8 text-white-dark">
-                        No employees found
-                    </td>
+                    <td colspan="8" class="text-center py-8 text-white-dark">No employees found</td>
                 </tr>
             `);
             return;
         }
 
         employees.forEach(employee => {
+            const email = employee.user ? employee.user.email : 'N/A';
+
+            const imgHtml = employee.employee_image
+                ? `<img src="/storage/${employee.employee_image}" class="h-9 w-9 rounded-full object-cover ring-1 ring-white-light" alt="Employee">`
+                : `<div class="h-9 w-9 rounded-full bg-white-light/60 flex items-center justify-center ring-1 ring-white-light">
+                        <svg class="h-5 w-5 text-white-dark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5Z" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M20 21c0-4.418-3.582-8-8-8s-8 3.582-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                   </div>`;
+
             const row = `
                 <tr>
+                    <td>${imgHtml}</td>
                     <td class="font-semibold">${employee.staff_number}</td>
                     <td>${employee.employee_name}</td>
                     <td>${employee.designation}</td>
-                    <td class="text-xs text-white-dark">${employee.user.email}</td>
+                    <td class="text-xs text-white-dark">${email}</td>
                     <td>
                         <span class="badge ${getBadgeClass(employee.status)}">
                             ${capitalizeText(employee.status)}
@@ -258,6 +274,47 @@ $(function() {
             `;
             tbody.append(row);
         });
+    }
+
+    function renderPagination(p) {
+        const info = $('#pagination-info');
+        const controls = $('#pagination-controls');
+
+        info.empty();
+        controls.empty();
+
+        if (!p) return;
+
+        info.text(`Showing page ${p.current_page} of ${p.last_page} • Total ${p.total}`);
+
+        // Prev
+        controls.append(`
+            <button class="btn btn-sm btn-outline-primary pagination-btn" data-page="${Math.max(1, p.current_page - 1)}"
+                ${p.current_page <= 1 ? 'disabled' : ''}>
+                Prev
+            </button>
+        `);
+
+        // Page numbers (compact)
+        const start = Math.max(1, p.current_page - 2);
+        const end = Math.min(p.last_page, p.current_page + 2);
+
+        for (let i = start; i <= end; i++) {
+            controls.append(`
+                <button class="btn btn-sm ${i === p.current_page ? 'btn-primary' : 'btn-outline-primary'} pagination-btn"
+                        data-page="${i}">
+                    ${i}
+                </button>
+            `);
+        }
+
+        // Next
+        controls.append(`
+            <button class="btn btn-sm btn-outline-primary pagination-btn" data-page="${Math.min(p.last_page, p.current_page + 1)}"
+                ${p.current_page >= p.last_page ? 'disabled' : ''}>
+                Next
+            </button>
+        `);
     }
 
     // Delete employee handler (event delegation)

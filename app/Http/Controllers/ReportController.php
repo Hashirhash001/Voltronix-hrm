@@ -692,7 +692,7 @@ class ReportController extends Controller
     }
 
     /**
-     * ✅ FIXED: Export individual employee report
+     * Export individual employee report
      */
     public function employeeExport(Request $request)
     {
@@ -808,7 +808,7 @@ class ReportController extends Controller
     }
 
     /**
-     * ✅ FIXED: Export employee to CSV (corrected method name)
+     * Export employee to CSV (corrected method name)
      */
     private function exportEmployeeToCsv($employee, $attendances, $stats, $startDate, $endDate)
     {

@@ -24,6 +24,8 @@ class Attendance extends Model
         'notes',
         'late_minutes',
         'is_late',
+        'overtime_before_midnight_hours',
+        'overtime_after_midnight_hours',
     ];
 
     // Cast only attendance_date as date
@@ -34,6 +36,8 @@ class Attendance extends Model
         'total_hours' => 'decimal:2',
         'late_minutes' => 'integer',
         'is_late' => 'boolean',
+        'overtime_before_midnight_hours' => 'decimal:2',
+        'overtime_after_midnight_hours' => 'decimal:2',
     ];
 
     protected $appends = ['late_status', 'check_in_carbon', 'check_out_carbon'];
@@ -77,6 +81,8 @@ class Attendance extends Model
                 'total_hours' => 0,
                 'regular_hours' => 0,
                 'overtime_hours' => 0,
+                'overtime_before_midnight_hours' => 0,
+                'overtime_after_midnight_hours' => 0,
             ]);
             return;
         }
@@ -84,30 +90,66 @@ class Attendance extends Model
         $checkIn = Carbon::parse($this->check_in_time);
         $checkOut = Carbon::parse($this->check_out_time);
 
+        // ✅ Cross-midnight handling
+        if ($checkOut->lessThan($checkIn)) {
+            $checkOut = $checkOut->copy()->addDay();
+        }
+
         $totalMinutes = $checkIn->diffInMinutes($checkOut);
         $totalHours = round($totalMinutes / 60, 2);
 
-        // ✅ Check if this is Sunday work
-        $isSunday = Carbon::parse($this->attendance_date)->dayOfWeek === Carbon::SUNDAY;
+        $attendanceDate = $this->attendance_date instanceof Carbon
+            ? $this->attendance_date
+            : Carbon::parse($this->attendance_date);
 
+        $isSunday = $attendanceDate->dayOfWeek === Carbon::SUNDAY;
+
+        // Midnight boundary = next day 00:00
+        $midnight = $attendanceDate->copy()->addDay()->startOfDay();
+
+        // Split shift into before/after midnight minutes
+        $beforeMidnightMinutes = 0;
+        $afterMidnightMinutes = 0;
+
+        if ($checkOut->lessThanOrEqualTo($midnight)) {
+            $beforeMidnightMinutes = $checkIn->diffInMinutes($checkOut);
+        } elseif ($checkIn->greaterThanOrEqualTo($midnight)) {
+            $afterMidnightMinutes = $checkIn->diffInMinutes($checkOut);
+        } else {
+            $beforeMidnightMinutes = $checkIn->diffInMinutes($midnight);
+            $afterMidnightMinutes = $midnight->diffInMinutes($checkOut);
+        }
+
+        $beforeMidnightHours = round($beforeMidnightMinutes / 60, 2);
+        $afterMidnightHours = round($afterMidnightMinutes / 60, 2);
+
+        // ✅ Sunday rule: all hours are overtime (your existing approach) [file:4]
         if ($isSunday) {
-            // ALL hours on Sunday are overtime
             $this->update([
                 'total_hours' => $totalHours,
                 'regular_hours' => 0,
                 'overtime_hours' => $totalHours,
+                'overtime_before_midnight_hours' => $beforeMidnightHours,
+                'overtime_after_midnight_hours' => $afterMidnightHours,
             ]);
-        } else {
-            // Regular Mon-Sat calculation
-            $regularHours = min($totalHours, 10);
-            $overtimeHours = max(0, $totalHours - 10);
-
-            $this->update([
-                'total_hours' => $totalHours,
-                'regular_hours' => $regularHours,
-                'overtime_hours' => $overtimeHours,
-            ]);
+            return;
         }
+
+        // Standard working hours: 10 hours (your existing rule) [file:4]
+        $regularHours = min($totalHours, 10);
+        $overtimeHours = max(0, $totalHours - 10);
+
+        // Split overtime into before/after midnight (after-midnight OT cannot exceed total OT)
+        $overtimeAfterMidnight = min($overtimeHours, $afterMidnightHours);
+        $overtimeBeforeMidnight = max(0, $overtimeHours - $overtimeAfterMidnight);
+
+        $this->update([
+            'total_hours' => $totalHours,
+            'regular_hours' => $regularHours,
+            'overtime_hours' => $overtimeHours,
+            'overtime_before_midnight_hours' => $overtimeBeforeMidnight,
+            'overtime_after_midnight_hours' => $overtimeAfterMidnight,
+        ]);
     }
 
     public function hasOvertime()

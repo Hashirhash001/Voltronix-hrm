@@ -48,7 +48,18 @@ Route::middleware(['auth'])->group(function () {
         Route::post('bulk-import', [EmployeeImportController::class, 'import'])->name('bulk-import');
         Route::get('export', [EmployeeImportController::class, 'export'])->name('export');
         Route::get('download-template', [EmployeeImportController::class, 'downloadTemplate'])->name('download-template');
+        // Add vacation
+        Route::post('/{employee}/vacations', [EmployeeController::class, 'storeVacation'])
+        ->name('vacations.store');
+        Route::put('/{employee}/vacations/{vacation}', [EmployeeController::class, 'updateVacation'])
+        ->name('vacations.update');
+        Route::delete('/{employee}/vacations/{vacation}', [EmployeeController::class, 'destroyVacation'])
+            ->name('vacations.destroy');
     });
+
+    // Employees Available For Date
+    Route::get('employees/available-for-date', [AttendanceController::class, 'getAvailableEmployees'])
+    ->name('employees.available-for-date');
 
     // Employees Resource Routes (Must come AFTER specific routes)
     Route::resource('employees', EmployeeController::class);
