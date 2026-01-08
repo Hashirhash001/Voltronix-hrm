@@ -17,22 +17,6 @@
         <div class="mb-6 flex items-center justify-between">
             <h2 class="text-2xl font-semibold dark:text-white-light">Employees List</h2>
             <div class="flex gap-2">
-                {{-- <a href="{{ route('employees.import') }}" class="btn btn-outline-info gap-2">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 5V19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M19 12L12 19L5 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    Import
-                </a>
-
-                <a href="{{ route('employees.export') }}" class="btn btn-outline-primary gap-2">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 19V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M5 12L12 5L19 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    Export
-                </a> --}}
-
                 <a href="{{ route('employees.create') }}" class="btn btn-primary gap-2">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 5V19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -50,7 +34,7 @@
                 <button id="reset-filters" class="text-xs text-primary hover:underline">Reset Filters</button>
             </div>
 
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                 <!-- Search Filter -->
                 <div>
                     <label class="mb-2 block text-xs font-semibold">Search</label>
@@ -60,6 +44,17 @@
                         class="form-input"
                         placeholder="Name, email, designation..."
                     />
+                </div>
+
+                <!-- ✅ Entity Filter -->
+                <div>
+                    <label class="mb-2 block text-xs font-semibold">Entity</label>
+                    <select class="form-select" id="filter-entity">
+                        <option value="">All Entities</option>
+                        @foreach($entities as $entity)
+                            <option value="{{ $entity->id }}">{{ $entity->entity_name }}</option>
+                        @endforeach
+                    </select>
                 </div>
 
                 <!-- Status Filter -->
@@ -107,7 +102,7 @@
         <!-- Loading Indicator -->
         <div id="loading-indicator" class="panel text-center py-8" style="display: none;">
             <svg class="animate-spin h-8 w-8 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                ircle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
             <p class="mt-3 text-gray-600 dark:text-gray-400">Loading employees...</p>
@@ -122,6 +117,7 @@
                             <th>Image</th>
                             <th>Staff Number</th>
                             <th>Name</th>
+                            <th>Entity</th>
                             <th>Designation</th>
                             <th>Email</th>
                             <th>Status</th>
@@ -140,7 +136,6 @@
                     <div id="pagination-controls" class="flex flex-wrap gap-2"></div>
                 </div>
             </div>
-
         </div>
     </div>
 </div>
@@ -158,7 +153,8 @@ $(function() {
         filterTimeout = setTimeout(() => loadEmployees(1), 500);
     });
 
-    $('#filter-status, #filter-designation, #filter-salary').on('change', function () {
+    // ✅ Added entity filter listener
+    $('#filter-status, #filter-designation, #filter-salary, #filter-entity').on('change', function () {
         loadEmployees(1);
     });
 
@@ -167,10 +163,10 @@ $(function() {
         $('#filter-status').val('');
         $('#filter-designation').val('');
         $('#filter-salary').val('');
+        $('#filter-entity').val(''); // ✅ Reset entity filter
         loadEmployees(1);
     });
 
-    // pagination click (event delegation)
     $(document).on('click', '.pagination-btn', function () {
         const page = parseInt($(this).data('page'), 10);
         if (!isNaN(page)) loadEmployees(page);
@@ -184,6 +180,7 @@ $(function() {
             status: $('#filter-status').val(),
             designation: $('#filter-designation').val(),
             min_salary: $('#filter-salary').val(),
+            entity_id: $('#filter-entity').val(), // ✅ Added entity filter
             page: currentPage,
             per_page: 10,
             ajax: true
@@ -218,7 +215,7 @@ $(function() {
         if (!employees.length) {
             tbody.append(`
                 <tr>
-                    <td colspan="8" class="text-center py-8 text-white-dark">No employees found</td>
+                    <td colspan="9" class="text-center py-8 text-white-dark">No employees found</td>
                 </tr>
             `);
             return;
@@ -226,6 +223,9 @@ $(function() {
 
         employees.forEach(employee => {
             const email = employee.user ? employee.user.email : 'N/A';
+            const entityName = employee.entity_name
+                ? `<span class="text-sm">${employee.entity_name}</span>`
+                : `<span class="text-xs text-gray-400 italic">Not assigned</span>`; // ✅ Show entity
 
             const imgHtml = employee.employee_image
                 ? `<img src="/storage/${employee.employee_image}" class="h-9 w-9 rounded-full object-cover ring-1 ring-white-light" alt="Employee">`
@@ -241,6 +241,7 @@ $(function() {
                     <td>${imgHtml}</td>
                     <td class="font-semibold">${employee.staff_number}</td>
                     <td>${employee.employee_name}</td>
+                    <td>${entityName}</td>
                     <td>${employee.designation}</td>
                     <td class="text-xs text-white-dark">${email}</td>
                     <td>
@@ -287,7 +288,6 @@ $(function() {
 
         info.text(`Showing page ${p.current_page} of ${p.last_page} • Total ${p.total}`);
 
-        // Prev
         controls.append(`
             <button class="btn btn-sm btn-outline-primary pagination-btn" data-page="${Math.max(1, p.current_page - 1)}"
                 ${p.current_page <= 1 ? 'disabled' : ''}>
@@ -295,7 +295,6 @@ $(function() {
             </button>
         `);
 
-        // Page numbers (compact)
         const start = Math.max(1, p.current_page - 2);
         const end = Math.min(p.last_page, p.current_page + 2);
 
@@ -308,7 +307,6 @@ $(function() {
             `);
         }
 
-        // Next
         controls.append(`
             <button class="btn btn-sm btn-outline-primary pagination-btn" data-page="${Math.min(p.last_page, p.current_page + 1)}"
                 ${p.current_page >= p.last_page ? 'disabled' : ''}>
@@ -317,7 +315,6 @@ $(function() {
         `);
     }
 
-    // Delete employee handler (event delegation)
     $(document).on('click', '.delete-employee', function() {
         const id = $(this).data('id');
         const name = $(this).data('name');
@@ -346,7 +343,6 @@ $(function() {
         });
     });
 
-    // Helper functions
     function getBadgeClass(status) {
         const classes = {
             'active': 'bg-success',

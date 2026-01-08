@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use App\Models\Employee;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Entity extends Model
 {
@@ -33,6 +34,11 @@ class Entity extends Model
         'camp_ejari_renewal_date' => 'date',
         'workman_insurance_expiry_date' => 'date',
     ];
+
+    public function employees()
+    {
+        return $this->hasMany(Employee::class);
+    }
 
     public function getDocumentStatus($date)
     {

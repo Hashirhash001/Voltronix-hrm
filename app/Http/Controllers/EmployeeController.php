@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Carbon\Carbon;
 use App\Models\User;
+use App\Models\Entity;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use App\Models\EmployeeDocument;
@@ -20,7 +21,7 @@ class EmployeeController extends Controller
     {
         $query = Employee::with(['user' => function ($q) {
             $q->where('role', '!=', 'admin');
-        }])->whereHas('user', function ($q) {
+        }, 'entity'])->whereHas('user', function ($q) {
             $q->where('role', '!=', 'admin');
         });
 
@@ -37,9 +38,25 @@ class EmployeeController extends Controller
             });
         }
 
-        if ($request->filled('status')) $query->where('status', $request->status);
-        if ($request->filled('designation')) $query->where('designation', $request->designation);
-        if ($request->filled('min_salary')) $query->where('total_salary', '>=', $request->min_salary);
+        // Status filter
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Designation filter
+        if ($request->filled('designation')) {
+            $query->where('designation', $request->designation);
+        }
+
+        // Entity filter
+        if ($request->filled('entity_id')) {
+            $query->where('entity_id', $request->entity_id);
+        }
+
+        // Salary filter
+        if ($request->filled('min_salary')) {
+            $query->where('total_salary', '>=', $request->min_salary);
+        }
 
         $perPage = (int) ($request->get('per_page', 10));
         $perPage = max(5, min($perPage, 100));
@@ -49,24 +66,45 @@ class EmployeeController extends Controller
             ->orderBy('staff_number', 'asc')
             ->paginate($perPage);
 
-        if ($request->ajax() || $request->has('ajax')) {
-            return response()->json([
-                'employees'   => $employees->items(),
-                'pagination'  => [
-                    'current_page' => $employees->currentPage(),
-                    'last_page'    => $employees->lastPage(),
-                    'per_page'     => $employees->perPage(),
-                    'total'        => $employees->total(),
-                ],
-            ]);
-        }
+            if ($request->ajax() || $request->has('ajax')) {
+                return response()->json([
+                    'employees' => $employees->map(function($employee) {
+                        return [
+                            'id' => $employee->id,
+                            'staff_number' => $employee->staff_number,
+                            'employee_name' => $employee->employee_name,
+                            'designation' => $employee->designation,
+                            'status' => $employee->status,
+                            'total_salary' => $employee->total_salary,
+                            'employee_image' => $employee->employee_image,
+                            'entity_name' => $employee->entity?->entity_name, // ✅ Include entity name
+                            'user' => $employee->user ? [
+                                'email' => $employee->user->email
+                            ] : null,
+                        ];
+                    }),
+                    'pagination' => [
+                        'current_page' => $employees->currentPage(),
+                        'last_page'    => $employees->lastPage(),
+                        'per_page'     => $employees->perPage(),
+                        'total'        => $employees->total(),
+                    ],
+                ]);
+            }
 
-        return view('employees.index');
+        $entities = Entity::where('status', 'active')
+                         ->orderBy('entity_name')
+                         ->get();
+
+        return view('employees.index', compact('entities'));
     }
 
     public function create()
     {
-        return view('employees.create');
+        $entities = Entity::where('status', 'active')
+                         ->orderBy('entity_name')
+                         ->get();
+        return view('employees.create', compact('entities'));
     }
 
     public function store(Request $request)
@@ -76,6 +114,7 @@ class EmployeeController extends Controller
             'employee_name' => 'required|string',
             'employee_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:200',
             'email' => 'required|email|unique:users,email',
+            'entity_id' => 'nullable|exists:entities,id',
             'designation' => 'required|string',
             'qualification' => 'nullable|string',
             'year_of_completion' => 'nullable|integer|min:1950|max:' . date('Y'),
@@ -151,6 +190,7 @@ class EmployeeController extends Controller
 
             $employeeData = [
                 'user_id' => $user->id,
+                'entity_id' => $validated['entity_id'] ?? null,
                 'staff_number' => $validated['staff_number'],
                 'employee_name' => $validated['employee_name'],
                 'designation' => $validated['designation'],
@@ -246,14 +286,17 @@ class EmployeeController extends Controller
 
     public function show(Employee $employee)
     {
-        $employee->load(['user', 'vacations']);
+        $employee->load(['user', 'vacations', 'entity']);
         return view('employees.show', compact('employee'));
     }
 
     public function edit(Employee $employee)
     {
+        $entities = Entity::where('status', 'active')
+                         ->orderBy('entity_name')
+                         ->get();
         $employee->load('vacations');
-        return view('employees.edit', compact('employee'));
+        return view('employees.edit', compact('employee', 'entities'));
     }
 
     public function update(Request $request, Employee $employee)
@@ -272,7 +315,7 @@ class EmployeeController extends Controller
                 'staff_number' => 'required|string|unique:employees,staff_number,' . $employee->id . ',id,deleted_at,NULL',
                 'employee_name' => 'required|string',
                 'employee_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:200',
-
+                'entity_id' => 'nullable|exists:entities,id',
                 'designation' => 'required|string',
                 'qualification' => 'nullable|string',
                 'year_of_completion' => 'nullable|integer|min:1950|max:' . date('Y'),
@@ -360,6 +403,7 @@ class EmployeeController extends Controller
             // Update employee fields ONE BY ONE (avoid mass update issues with SoftDeletes)
             $employee->staff_number = $validated['staff_number'];
             $employee->employee_name = $validated['employee_name'];
+            $employee->entity_id = $validated['entity_id'] ?? null;
             $employee->designation = $validated['designation'];
             $employee->qualification = $validated['qualification'] ?? null;
             $employee->year_of_completion = $validated['year_of_completion'] ?? null;

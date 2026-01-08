@@ -43,6 +43,18 @@
 
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
                     <div>
+                        <label for="entity_id">Entity</label>
+                        <select id="entity_id" name="entity_id" class="form-select">
+                            <option value="">Select Entity (Optional)</option>
+                            @foreach($entities as $entity)
+                                <option value="{{ $entity->id }}" @selected(old('entity_id') == $entity->id)>
+                                    {{ $entity->entity_name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Assign employee to an entity</p>
+                    </div>
+                    <div>
                         <label for="employee_image">Employee Image</label>
                         <input id="employee_image" type="file" name="employee_image" class="form-input" accept="image/*">
                         <p class="text-xs text-gray-500 mt-1">JPG/PNG/WEBP, max 200KB.</p>
@@ -51,13 +63,14 @@
                         <label for="designation">Designation <span class="text-danger">*</span></label>
                         <input id="designation" type="text" name="designation" class="form-input" placeholder="e.g., Electrician" required value="{{ old('designation') }}">
                     </div>
+
+                </div>
+
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
                     <div>
                         <label for="qualification">Qualification</label>
                         <input id="qualification" type="text" name="qualification" class="form-input" placeholder="e.g., Bachelor of Engineering" value="{{ old('qualification') }}">
                     </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
                     <div>
                         <label for="year_of_completion">Year of Completion</label>
                         <input id="year_of_completion" type="number" name="year_of_completion" class="form-input" placeholder="e.g., 2020" min="1950" max="{{ date('Y') }}" value="{{ old('year_of_completion') }}">
@@ -67,13 +80,13 @@
                         <input id="qualification_document" type="file" name="qualification_document" class="form-input" accept=".pdf,.jpg,.jpeg,.png">
                         <p class="text-xs text-gray-500 mt-1">Upload certificate. Max 5MB</p>
                     </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
                     <div>
                         <label for="pp_status">PP Status</label>
                         <input id="pp_status" type="text" name="pp_status" class="form-input" placeholder="PP status" value="{{ old('pp_status') }}">
                     </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
                     <div>
                         <label for="uae_contact">UAE Contact</label>
                         <input id="uae_contact" type="text" name="uae_contact" class="form-input" placeholder="971..." value="{{ old('uae_contact') }}">

@@ -3,6 +3,7 @@
 
 namespace App\Models;
 
+use App\Models\Entity;
 use Illuminate\Support\Carbon;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeVacation;
@@ -15,6 +16,7 @@ class Employee extends Model
 
     protected $fillable = [
         'user_id',
+        'entity_id',
         'staff_number',
         'employee_image',
         'employee_name',
@@ -93,6 +95,11 @@ class Employee extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function entity()
+    {
+        return $this->belongsTo(Entity::class);
     }
 
     public function attendances()

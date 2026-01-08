@@ -48,6 +48,19 @@
 
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
                     <div>
+                        <label for="entity_id">Entity</label>
+                        <select id="entity_id" name="entity_id" class="form-select">
+                            <option value="">Select Entity (Optional)</option>
+                            @foreach($entities as $entity)
+                                <option value="{{ $entity->id }}"
+                                    @selected(old('entity_id', $employee->entity_id) == $entity->id)>
+                                    {{ $entity->entity_name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Assign employee to an entity</p>
+                    </div>
+                    <div>
                         <label for="employee_image">Employee Image</label>
                         <input id="employee_image" type="file" name="employee_image" class="form-input" accept="image/*">
 
@@ -64,14 +77,15 @@
                         <input id="designation" type="text" name="designation" class="form-input" required
                                value="{{ old('designation', $employee->designation) }}">
                     </div>
+
+                </div>
+
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
                     <div>
                         <label for="qualification">Qualification</label>
                         <input id="qualification" type="text" name="qualification" class="form-input"
                                value="{{ old('qualification', $employee->qualification) }}">
                     </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
                     <div>
                         <label for="year_of_completion">Year of Completion</label>
                         <input id="year_of_completion" type="number" name="year_of_completion" class="form-input"
@@ -86,14 +100,15 @@
                                href="{{ asset('storage/' . $employee->qualification_document) }}">View current document</a>
                         @endif
                     </div>
+
+                </div>
+
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-3 mt-5">
                     <div>
                         <label for="pp_status">PP Status</label>
                         <input id="pp_status" type="text" name="pp_status" class="form-input"
                                value="{{ old('pp_status', $employee->pp_status) }}">
                     </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
                     <div>
                         <label for="uae_contact">UAE Contact</label>
                         <input id="uae_contact" type="text" name="uae_contact" class="form-input"

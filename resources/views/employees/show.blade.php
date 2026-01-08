@@ -86,6 +86,21 @@
                     <h5 class="text-lg font-semibold">Personal Information</h5>
                 </div>
                 <div class="space-y-4">
+                    @if($employee->entity)
+                    <div class="flex justify-between">
+                        <span class="text-white-dark">Entity:</span>
+                        <span class="font-semibold">
+                            <span class="badge bg-primary">
+                                {{ $employee->entity->entity_name ?? $employee->entity }}
+                            </span>
+                        </span>
+                    </div>
+                    @else
+                    <div class="flex justify-between">
+                        <span class="text-white-dark">Entity:</span>
+                        <span class="font-semibold text-white-dark">Not assigned</span>
+                    </div>
+                    @endif
                     <div class="flex justify-between">
                         <span class="text-white-dark">Staff Number:</span>
                         <span class="font-semibold">{{ $employee->staff_number }}</span>

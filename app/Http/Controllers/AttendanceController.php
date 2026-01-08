@@ -19,43 +19,62 @@ class AttendanceController extends Controller
         // Check if this is an AJAX request
         if ($request->wantsJson() || $request->ajax()) {
 
-            $query = Attendance::with('employee');
+            // Base query for main results (with JOIN for ordering)
+            $query = Attendance::select('attendances.*')
+                ->leftJoin('employees', 'attendances.employee_id', '=', 'employees.id')
+                ->with(['employee:id,staff_number,employee_name']);
 
-            // 1. Date filtering (support both single date and range)
+            // 1. Date filtering
             if ($request->has('date') && $request->date) {
-                $query->whereDate('attendance_date', $request->date);
+                $query->whereDate('attendances.attendance_date', $request->date);
             } elseif ($request->has('start_date') && $request->has('end_date') && $request->start_date && $request->end_date) {
-                $query->whereBetween('attendance_date', [$request->start_date, $request->end_date]);
+                $query->whereBetween('attendances.attendance_date', [$request->start_date, $request->end_date]);
             } else {
-                $query->whereDate('attendance_date', now()->format('Y-m-d'));
+                $query->whereDate('attendances.attendance_date', now()->format('Y-m-d'));
             }
 
             // 2. Employee filter
             if ($request->has('employee_id') && $request->employee_id) {
-                $query->where('employee_id', $request->employee_id);
+                $query->where('attendances.employee_id', $request->employee_id);
             }
 
             // 3. Status filter
             if ($request->has('status') && $request->status) {
-                $query->where('status', $request->status);
+                $query->where('attendances.status', $request->status); // ✅ FIXED: Table prefix
             }
 
-            // ===== Calculate stats AFTER applying filters =====
+            // ===== SEPARATE STATS QUERY without JOIN (avoids ambiguity) =====
+            $statsQuery = Attendance::query(); // Fresh query without JOIN
+
+            // Apply same date filters to stats
+            if ($request->has('date') && $request->date) {
+                $statsQuery->whereDate('attendance_date', $request->date);
+            } elseif ($request->has('start_date') && $request->has('end_date') && $request->start_date && $request->end_date) {
+                $statsQuery->whereBetween('attendance_date', [$request->start_date, $request->end_date]);
+            } else {
+                $statsQuery->whereDate('attendance_date', now()->format('Y-m-d'));
+            }
+
+            // Apply same employee filter to stats
+            if ($request->has('employee_id') && $request->employee_id) {
+                $statsQuery->where('employee_id', $request->employee_id);
+            }
+
             $stats = [
-                'present'   => (clone $query)->where('status', 'present')->count(),
-                'absent'    => (clone $query)->where('status', 'absent')->count(),
-                'leave'     => (clone $query)->where('status', 'leave')->count(),
-                'half_day'  => (clone $query)->where('status', 'half_day')->count(),
+                'present'   => $statsQuery->where('status', 'present')->count(),
+                'absent'    => $statsQuery->where('status', 'absent')->count(),
+                'leave'     => $statsQuery->where('status', 'leave')->count(),
+                'half_day'  => $statsQuery->where('status', 'half_day')->count(),
             ];
 
-            // Paginate the filtered results
-            $attendances = $query->orderBy('attendance_date', 'desc')
-                ->orderBy('id', 'desc')
+            // ✅ Main query ordering (JOIN works here)
+            $attendances = $query->orderBy('employees.staff_number', 'asc')
+                ->orderBy('attendances.attendance_date', 'desc')
+                ->orderBy('attendances.id', 'desc')
                 ->paginate(15);
 
             // Format attendances
             $formattedAttendances = $attendances->map(function ($attendance) {
-
                 $checkIn  = $attendance->check_in_time ? Carbon::parse($attendance->check_in_time) : null;
                 $checkOut = $attendance->check_out_time ? Carbon::parse($attendance->check_out_time) : null;
 
@@ -67,26 +86,24 @@ class AttendanceController extends Controller
                 return [
                     'id' => $attendance->id,
                     'employee' => [
+                        'id' => $attendance->employee_id,
                         'employee_name' => $attendance->employee->employee_name ?? 'N/A',
+                        'staff_number' => $attendance->employee->staff_number ?? 'N/A',
                     ],
-                    'staff_number' => $attendance->staff_number,
+                    'staff_number' => $attendance->employee->staff_number ?? 'N/A',
                     'attendance_date' => $attendance->attendance_date->format('Y-m-d'),
 
                     'check_in_time' => $attendance->check_in_time,
                     'check_out_time' => $attendance->check_out_time,
-
-                    // ✅ indicator for UI
                     'is_checkout_next_day' => $isCheckoutNextDay,
 
                     'total_hours' => (float) ($attendance->total_hours ?? 0),
                     'formatted_total_hours' => $attendance->getFormattedTotalHours(),
 
-                    // ✅ overtime (total + split)
                     'overtime_hours' => (float) ($attendance->overtime_hours ?? 0),
                     'formatted_overtime_hours' => $attendance->getFormattedOvertimeHours(),
                     'overtime_before_midnight_hours' => (float) ($attendance->overtime_before_midnight_hours ?? 0),
                     'overtime_after_midnight_hours' => (float) ($attendance->overtime_after_midnight_hours ?? 0),
-                    'is_checkout_next_day' => $isCheckoutNextDay,
 
                     'status' => $attendance->status,
                     'notes' => $attendance->notes,
@@ -109,6 +126,7 @@ class AttendanceController extends Controller
 
         // Browser request - return Blade view
         $employees = Employee::whereIn('status', ['active', 'vacation'])
+            ->orderBy('staff_number', 'asc')
             ->orderBy('employee_name')
             ->get();
 
