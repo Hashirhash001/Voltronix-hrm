@@ -157,16 +157,35 @@
                     <input type="date" id="filter-date" value="{{ request('date', date('Y-m-d')) }}" class="form-input">
                 </div>
 
+                <!-- Entity Filter -->
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Entity</label>
+                    <select id="filter-entity" class="form-select">
+                        <option value="">All Entities</option>
+                        @foreach($entities as $entity)
+                            <option value="{{ $entity->id }}" {{ request('entity_id') == $entity->id ? 'selected' : '' }}>
+                                {{ $entity->entity_name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
                 <!-- Employee Filter with Search -->
                 <div>
                     <label class="block text-sm font-semibold mb-2">Employee</label>
                     <select id="filter-employee" class="form-select">
                         <option value="">All Employees</option>
                         @foreach($employees as $employee)
-                            <option value="{{ $employee->id }}">{{ $employee->employee_name }} ({{ $employee->staff_number }})</option>
+                            <option
+                                value="{{ $employee->id }}"
+                                data-entity-id="{{ $employee->entity_id ?? '' }}"
+                            >
+                                {{ $employee->employee_name }} ({{ $employee->staff_number }})
+                            </option>
                         @endforeach
                     </select>
                 </div>
+
 
                 <!-- Status Filter -->
                 <div>
@@ -469,25 +488,33 @@
         // GLOBAL STATE
         let currentPage = 1;
         let currentEditId = null;
-        let currentFilters = {}; // NEW: persist filters across pagination
+        let currentFilters = {}; // persist filters across pagination
         const employees = @json($employees);
+        const entities = @json($entities ?? []);
 
         // DOCUMENT READY
         $(document).ready(function () {
             console.log('Attendance Manager Initialized');
 
-            // 1. Initialize Select2 FIRST
+            // Initialize Select2 FIRST
             initializeSelect2();
 
-            // 2. Set initial date
+            // Set initial date
             $('#filter-date').val('{{ $request->date ?? date("Y-m-d") }}');
 
-            // 3. THEN attach event listeners
+            // Restore entity filter from URL if present
+            const urlEntityId = new URLSearchParams(window.location.search).get('entity_id');
+            if (urlEntityId) {
+                $('#filter-entity').val(urlEntityId).trigger('change');
+            }
+
+            // THEN attach event listeners
             initEventListeners();
 
-            // 4. Load initial data with all current filter values
+            // Load initial data with all current filter values
             updateFilters();
             fetchAttendances();
+            // updateStats();
         });
 
         // INITIALIZE EVENT LISTENERS
@@ -496,6 +523,21 @@
             $('#filter-date').on('change', function () {
                 console.log('Date changed:', $(this).val());
                 $('#filter-quick-date').val('').trigger('change.select2');
+                currentPage = 1;
+                updateFilters();
+                fetchAttendances();
+                updateStats();
+            });
+
+            // NEW: Entity filter
+            $('#filter-entity').on('select2:select select2:clear', function(e) {
+                const entityId = $(this).val();
+                console.log('🔍 Entity changed:', entityId || 'All');
+
+                // Filter employees immediately
+                filterEmployeesByEntity(entityId);
+
+                // Reset page and refresh data
                 currentPage = 1;
                 updateFilters();
                 fetchAttendances();
@@ -671,6 +713,58 @@
             });
         }
 
+        function filterEmployeesByEntity(entityId) {
+            console.log('🔄 Filtering employees by entity:', entityId);
+
+            const $employeeSelect = $('#filter-employee');
+
+            // Destroy Select2 first
+            if ($employeeSelect.hasClass('select2-hidden-accessible')) {
+                $employeeSelect.select2('destroy');
+            }
+
+            // Show/hide options based on entity
+            $employeeSelect.find('option').each(function() {
+                const $option = $(this);
+                const optionEntityId = $option.data('entity-id'); // ✅ Use data-entity-id
+
+                if ($option.val() === '') {
+                    // Always show "All Employees"
+                    $option.prop('disabled', false).show();
+                    return;
+                }
+
+                if (!entityId) {
+                    // Show all employees if no entity selected
+                    $option.prop('disabled', false).show();
+                } else if (optionEntityId == entityId) {
+                    // Show matching employees
+                    $option.prop('disabled', false).show();
+                } else {
+                    // Hide non-matching employees
+                    $option.prop('disabled', true).hide();
+                }
+            });
+
+            // Clear employee selection if it doesn't match selected entity
+            const selectedEmployeeId = $employeeSelect.val();
+            if (selectedEmployeeId) {
+                const selectedEmployeeEntityId = $employeeSelect.find(`option[value="${selectedEmployeeId}"]`).data('entity-id');
+                if (entityId && selectedEmployeeEntityId != entityId) {
+                    $employeeSelect.val('').trigger('change');
+                    console.log('✅ Cleared employee selection - doesn\'t match entity');
+                }
+            }
+
+            // Reinitialize Select2
+            $employeeSelect.select2({
+                placeholder: entityId ? 'Select employee from this entity' : 'Search employee...',
+                allowClear: true,
+                width: '100%',
+                minimumResultsForSearch: 0
+            });
+        }
+
         // Function to load available employees for the selected date
         function loadAvailableEmployees(date) {
             const employeeList = $('#employee-list');
@@ -791,40 +885,35 @@
 
         // UPDATE FILTERS - NEW helper to keep filter state
         function updateFilters() {
-            // Always start fresh and collect ALL active filters
             currentFilters = {};
 
-            // 1. Employee filter (always check)
+            // Entity filter ✅ FIRST (important for employee filtering)
+            const entityId = $('#filter-entity').val();
+            if (entityId) {
+                currentFilters.entity_id = entityId;
+            }
+
+            // Employee filter
             const employeeId = $('#filter-employee').val();
             if (employeeId) {
                 currentFilters.employee_id = employeeId;
             }
 
-            // 2. Status filter (always check)
+            // Status filter
             const status = $('#filter-status').val();
             if (status) {
                 currentFilters.status = status;
             }
 
-            // 3. Date filtering (check which mode is active)
+            // Date filtering logic (unchanged)
             const quickSelect = $('#filter-quick-date').val();
-
             if (quickSelect) {
-                // Quick select is active - keep start_date/end_date from applyQuickDateFilter
-                // Don't override if they're already set
-                if (!currentFilters.start_date && !currentFilters.end_date) {
-                    // This shouldn't happen but just in case
-                    console.warn('Quick select active but no date range set');
-                }
+                // Quick select logic...
             } else {
-                // Manual single date mode
                 const dateValue = $('#filter-date').val();
                 if (dateValue) {
                     currentFilters.date = dateValue;
                 }
-                // Remove any date range params
-                delete currentFilters.start_date;
-                delete currentFilters.end_date;
             }
 
             console.log('✅ Updated filters:', currentFilters);
@@ -1299,9 +1388,13 @@
 
             // Reset UI elements
             $('#filter-date').val('{{ date("Y-m-d") }}');
+            $('#filter-entity').val('').trigger('change');
             $('#filter-employee').val('').trigger('change');
             $('#filter-status').val('').trigger('change');
             $('#filter-quick-date').val('').trigger('change');
+
+            // Show all employees again
+            filterEmployeesByEntity('');
 
             // Reset state
             currentPage = 1;
@@ -1344,6 +1437,7 @@
                         showToast('success', response.message);
                         // Update only this row, not entire table
                         updateSingleRow(id, response.attendance);
+                        updateStats();
                     } else {
                         showToast('error', response.message);
                     }
@@ -1609,7 +1703,7 @@
             });
         }
 
-        // EXPORT REPORT - IMPROVED VERSION
+        // EXPORT REPORT
         function exportReport() {
             const startDate = $('#export-start').val();
             const endDate = $('#export-end').val();
@@ -1626,7 +1720,7 @@
                 return;
             }
 
-            // Disable export button
+            // Disable export button and show processing state
             exportButton.prop('disabled', true);
             exportButton.html(`
                 <svg class="animate-spin h-5 w-5 mr-2 inline" viewBox="0 0 24 24">
@@ -1636,35 +1730,61 @@
                 Generating ${format.toUpperCase()}...
             `);
 
-            const params = new URLSearchParams({
-                start_date: startDate,
-                end_date: endDate,
-                format: format
-            });
+            // CLOSE EXPORT MODAL TO AVOID OVERLAP
+            closeModal('#export-modal');
 
-            const employeeId = $('#export-employee').val();
-            if (employeeId) {
-                params.append('employee_id', employeeId);
-            }
-
-            // Show loading modal
+            // Show loader modal with SELF-ANIMATING SVG SPINNER (no dependency on Tailwind animate-spin)
             Swal.fire({
                 title: `Generating ${format.toUpperCase()} Report...`,
                 html: `
-                    <div class="flex flex-col items-center">
-                        <div class="loader mb-4"></div>
-                        <p class="text-sm text-gray-600">Please wait while we prepare your report</p>
-                        <p class="text-xs text-gray-500 mt-2">Period: ${startDate} to ${endDate}</p>
+                    <div class="flex flex-col items-center justify-center p-6">
+                        <!-- Self-contained SVG spinner with SMIL animation (always spins reliably) -->
+                        <svg width="80" height="80" viewBox="0 0 38 38" xmlns="http://www.w3.org/2000/svg" class="mb-6">
+                            <defs>
+                                <linearGradient x1="8.042%" y1="0%" x2="65.975%" y2="23.865%" id="a">
+                                    <stop stop-color="#6366f1" offset="0%"/>
+                                    <stop stop-color="#6366f1" stop-opacity="0" offset="100%"/>
+                                </linearGradient>
+                            </defs>
+                            <g fill="none" fill-rule="evenodd">
+                                <g transform="translate(1 1)">
+                                    <path d="M36 18c0-9.94-8.06-18-18-18" stroke="url(#a)" stroke-width="3">
+                                        <animateTransform
+                                            attributeName="transform"
+                                            type="rotate"
+                                            from="0 18 18"
+                                            to="360 18 18"
+                                            dur="1s"
+                                            repeatCount="indefinite"/>
+                                    </path>
+                                    <circle fill="#6366f1" cx="36" cy="18" r="1">
+                                        <animateTransform
+                                            attributeName="transform"
+                                            type="rotate"
+                                            from="0 18 18"
+                                            to="360 18 18"
+                                            dur="1s"
+                                            repeatCount="indefinite"/>
+                                    </circle>
+                                </g>
+                            </g>
+                        </svg>
+                        <p class="text-lg font-medium text-gray-800">Please wait...</p>
+                        <p class="text-sm text-gray-600 mt-2">Preparing your report for ${startDate} to ${endDate}</p>
                     </div>
                 `,
                 allowOutsideClick: false,
+                allowEscapeKey: false,
                 showConfirmButton: false,
-                didOpen: () => {
-                    Swal.showLoading();
+                width: '460px',
+                padding: '2rem',
+                background: '#ffffff',
+                customClass: {
+                    popup: 'rounded-xl shadow-2xl border border-gray-200'
                 }
             });
 
-            // Use AJAX to download file
+            // AJAX request
             $.ajax({
                 url: "{{ route('attendances.report.export') }}",
                 type: 'GET',
@@ -1672,29 +1792,23 @@
                     start_date: startDate,
                     end_date: endDate,
                     format: format,
-                    employee_id: employeeId || null
+                    employee_id: $('#export-employee').val() || null
                 },
                 xhrFields: {
                     responseType: 'blob'
                 },
                 success: function(data, status, xhr) {
-                    // Create blob from response
                     const blob = new Blob([data], {
                         type: format === 'pdf' ? 'application/pdf' : 'text/csv'
                     });
 
-                    // Get filename from header or create one
                     const contentDisposition = xhr.getResponseHeader('Content-Disposition');
                     let filename = `attendance_report_${startDate}_to_${endDate}.${format}`;
-
                     if (contentDisposition) {
-                        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-                        if (filenameMatch) {
-                            filename = filenameMatch[1];
-                        }
+                        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+                        if (match) filename = match[1];
                     }
 
-                    // Create download link
                     const link = document.createElement('a');
                     link.href = window.URL.createObjectURL(blob);
                     link.download = filename;
@@ -1703,38 +1817,32 @@
                     document.body.removeChild(link);
                     window.URL.revokeObjectURL(link.href);
 
-                    // Close modal and show success
                     Swal.close();
-                    closeModal('#export-modal');
-
                     Swal.fire({
                         icon: 'success',
                         title: 'Report Generated!',
-                        text: `Your ${format.toUpperCase()} has been downloaded successfully`,
-                        timer: 2000,
+                        text: `Your ${format.toUpperCase()} report has been downloaded.`,
+                        timer: 2500,
                         showConfirmButton: false
                     });
                 },
-                error: function(xhr, status, error) {
+                error: function(xhr) {
                     Swal.close();
-
-                    let errorMessage = 'Failed to generate report';
+                    let message = 'Failed to generate report';
                     try {
-                        const response = JSON.parse(xhr.responseText);
-                        errorMessage = response.message || errorMessage;
+                        const resp = JSON.parse(xhr.responseText);
+                        message = resp.message || message;
                     } catch (e) {
-                        errorMessage = 'Server error: ' + xhr.status;
+                        message = 'Server error: ' + xhr.status;
                     }
-
                     Swal.fire({
                         icon: 'error',
-                        title: 'Error!',
-                        text: errorMessage,
+                        title: 'Export Failed',
+                        text: message,
                         confirmButtonColor: '#d33'
                     });
                 },
                 complete: function() {
-                    // Re-enable button
                     exportButton.prop('disabled', false);
                     exportButton.html(originalButtonHtml);
                 }
@@ -1930,15 +2038,19 @@
         // INITIALIZE SELECT2
         function initializeSelect2() {
             // Destroy existing Select2 if any
-            if ($('#filter-employee').hasClass('select2-hidden-accessible')) {
-                $('#filter-employee').select2('destroy');
-            }
-            if ($('#filter-status').hasClass('select2-hidden-accessible')) {
-                $('#filter-status').select2('destroy');
-            }
-            if ($('#filter-quick-date').hasClass('select2-hidden-accessible')) {
-                $('#filter-quick-date').select2('destroy');
-            }
+            ['#filter-employee', '#filter-entity', '#filter-status', '#filter-quick-date'].forEach(selector => {
+                if ($(selector).hasClass('select2-hidden-accessible')) {
+                    $(selector).select2('destroy');
+                }
+            });
+
+            // Entity filter dropdown
+            $('#filter-entity').select2({
+                placeholder: 'All Entities',
+                allowClear: true,
+                width: '100%',
+                minimumResultsForSearch: Infinity
+            });
 
             // Employee filter dropdown WITH search
             $('#filter-employee').select2({

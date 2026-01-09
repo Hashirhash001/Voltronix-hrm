@@ -31,9 +31,9 @@
             <div class="panel h-full">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-3xl font-bold text-primary">{{ $totalEmployees }}</p>
-                        <h5 class="text-sm font-semibold text-[#506690] mt-1">Total Employees</h5>
-                        <p class="text-xs text-white-dark mt-1">{{ $activeEmployees }} Active • {{ $inactiveEmployees }} Inactive</p>
+                        <p class="text-3xl font-bold text-primary">{{ $activeEmployees }}</p>
+                        <h5 class="text-sm font-semibold text-[#506690] mt-1">Active Employees</h5>
+                        <p class="text-xs text-white-dark mt-1">{{ $inactiveEmployees }} Inactive • {{ $onVacation }} Vacation</p>
                     </div>
                     <div class="rounded-full bg-primary/10 p-3 ring-2 ring-primary/30">
                         <svg class="h-8 w-8 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

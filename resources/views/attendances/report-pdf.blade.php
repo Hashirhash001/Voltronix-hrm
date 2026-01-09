@@ -205,23 +205,6 @@
 </head>
 
 <body>
-    @php
-        // Helper function to format hours as "Xh Ym"
-        function formatHoursMinutes($decimalHours) {
-            if (!$decimalHours || $decimalHours == 0) return '0h 0m';
-
-            $hours = floor($decimalHours);
-            $minutes = round(($decimalHours - $hours) * 60);
-
-            // Handle rounding edge case
-            if ($minutes == 60) {
-                $hours++;
-                $minutes = 0;
-            }
-
-            return $hours . 'h ' . $minutes . 'm';
-        }
-    @endphp
 
     <!-- MAIN HEADER -->
     <div class="header">
@@ -230,7 +213,7 @@
         </div>
         <h1>Attendance Report</h1>
         <p><strong>Period:</strong> {{ \Carbon\Carbon::parse($start_date)->format('d M Y') }} to {{ \Carbon\Carbon::parse($end_date)->format('d M Y') }}</p>
-        <p><strong>Total Records:</strong> {{ $total_records }} | <strong>Employees:</strong> {{ $attendancesByEmployee->count() }}</p>
+        <p><strong>Total Records:</strong> {{ $total_records }} | <strong>Employees:</strong> {{ count($report_data) }}</p>
     </div>
 
     <!-- OVERALL SUMMARY -->
@@ -243,216 +226,87 @@
             <div class="summary-row-item"><strong>Leave</strong><span style="color:#3498db;">{{ $summary['total_leave'] }}</span></div>
             <div class="summary-row-item"><strong>Holiday</strong><span style="color:#95a5a6;">{{ $summary['total_holiday'] }}</span></div>
             <div class="summary-row-item"><strong>Extra Days</strong><span style="color:#16a085;">{{ $summary['total_extra_days'] ?? 0 }}</span></div>
-            <div class="summary-row-item"><strong>Total Hours</strong><span style="color:#2c3e50;">{{ formatHoursMinutes($summary['total_hours'] ?? 0) }}</span></div>
-            <div class="summary-row-item"><strong>Overtime</strong><span style="color:#e67e22;">{{ formatHoursMinutes($summary['total_overtime_hours'] ?? 0) }}</span></div>
+            <div class="summary-row-item"><strong>Total Hours</strong><span style="color:#2c3e50;">{{ $summary['total_hours'] }}</span></div>
+            <div class="summary-row-item"><strong>Overtime</strong><span style="color:#e67e22;">{{ $summary['total_overtime_hours'] }}</span></div>
         </div>
     </div>
 
     <!-- EMPLOYEE-WISE SECTIONS -->
-    @forelse($attendancesByEmployee as $employeeId => $employeeAttendances)
+    @forelse($report_data as $empData)
         @php
-            $employee = $employeeAttendances->first()->employee;
-
-            $empPresent = $employeeAttendances->where('status','present')->count();
-            $empAbsent  = $employeeAttendances->where('status','absent')->count();
-            $empHalfDay = $employeeAttendances->where('status','half_day')->count();
-            $empLeave   = $employeeAttendances->where('status','leave')->count();
-
-            $empExtraDays = $employeeAttendances->filter(function($att){
-                $attDate = $att->attendance_date instanceof \Carbon\Carbon ? $att->attendance_date : \Carbon\Carbon::parse($att->attendance_date);
-                $isSunday = $attDate->dayOfWeek === \Carbon\Carbon::SUNDAY;
-                $isHoliday = $att->status === 'holiday';
-                $hasWorked = in_array($att->status, ['present','half_day']);
-                return ($isSunday || $isHoliday) && $hasWorked;
-            })->count();
-
-            $empTotalHours = $employeeAttendances->sum('total_hours');
-
-            $empExtraHours = $employeeAttendances->filter(function($att){
-                $attDate = $att->attendance_date instanceof \Carbon\Carbon ? $att->attendance_date : \Carbon\Carbon::parse($att->attendance_date);
-                $isSunday = $attDate->dayOfWeek === \Carbon\Carbon::SUNDAY;
-                $isHoliday = $att->status === 'holiday';
-                $hasWorked = in_array($att->status, ['present','half_day']);
-                return ($isSunday || $isHoliday) && $hasWorked;
-            })->sum('total_hours');
-
-            $empOvertimeHours = $employeeAttendances->sum('overtime_hours') + $empExtraHours;
-
-            $vacations = $vacationsByEmployee[$employeeId] ?? collect();
-
-            // Build vacation day lookup
-            $vacationDays = [];
-            foreach ($vacations as $v) {
-                $cursor = ($v->start_date instanceof \Carbon\Carbon) ? $v->start_date->copy() : \Carbon\Carbon::parse($v->start_date);
-                $vEnd   = ($v->end_date   instanceof \Carbon\Carbon) ? $v->end_date->copy()   : \Carbon\Carbon::parse($v->end_date);
-
-                while ($cursor->lte($vEnd)) {
-                    $vacationDays[$cursor->format('Y-m-d')] = true;
-                    $cursor->addDay();
-                }
-            }
-
-            // Attendance lookup by date
-            $attendanceByDate = $employeeAttendances->keyBy(function($att){
-                $d = $att->attendance_date instanceof \Carbon\Carbon ? $att->attendance_date : \Carbon\Carbon::parse($att->attendance_date);
-                return $d->format('Y-m-d');
-            });
-
-            // Report period boundaries
-            $periodStart = \Carbon\Carbon::parse($start_date)->startOfDay();
-            $periodEnd   = \Carbon\Carbon::parse($end_date)->startOfDay();
+            $employee = $empData['employee'];
+            $summary = $empData['summary'];
+            $rows = $empData['rows'];
+            $hasRows = !empty($rows);
         @endphp
 
         <div class="employee-section">
             <div class="employee-header">
                 <h2>{{ $employee->employee_name }}</h2>
-                <p>Staff ID: {{ $employee->staff_number }} | Designation: {{ $employee->designation ?? 'N/A' }}</p>
+                <p>Staff ID: {{ $employee->staff_number }} | Designation: {{ $employee->designation ?? 'N/A' }} | Entity: {{ $employee->entity->entity_name ?? 'N/A' }}</p>
             </div>
 
-            <!-- Employee Summary -->
             <div class="employee-summary">
                 <div class="employee-summary-row">
-                    <div class="employee-summary-item"><label>Present</label><span style="color:#27ae60;">{{ $empPresent }}</span></div>
-                    <div class="employee-summary-item"><label>Absent</label><span style="color:#e74c3c;">{{ $empAbsent }}</span></div>
-                    <div class="employee-summary-item"><label>Half Day</label><span style="color:#f39c12;">{{ $empHalfDay }}</span></div>
-                    <div class="employee-summary-item"><label>Leave</label><span style="color:#3498db;">{{ $empLeave }}</span></div>
-                    <div class="employee-summary-item"><label>Extra Days</label><span style="color:#16a085;">{{ $empExtraDays }}</span></div>
-                    <div class="employee-summary-item"><label>Total Hours</label><span style="color:#2c3e50;">{{ formatHoursMinutes($empTotalHours) }}</span></div>
-                    <div class="employee-summary-item"><label>Overtime</label><span style="color:#e67e22;">{{ formatHoursMinutes($empOvertimeHours) }}</span></div>
+                    <div class="employee-summary-item"><label>Present</label><span style="color:#27ae60;">{{ $summary['present'] }}</span></div>
+                    <div class="employee-summary-item"><label>Absent</label><span style="color:#e74c3c;">{{ $summary['absent'] }}</span></div>
+                    <div class="employee-summary-item"><label>Half Day</label><span style="color:#f39c12;">{{ $summary['half_day'] }}</span></div>
+                    <div class="employee-summary-item"><label>Leave</label><span style="color:#3498db;">{{ $summary['leave'] }}</span></div>
+                    <div class="employee-summary-item"><label>Extra Days</label><span style="color:#16a085;">{{ $summary['extra_days'] }}</span></div>
+                    <div class="employee-summary-item"><label>Total Hours</label><span style="color:#2c3e50;">{{ $summary['total_hours'] }}</span></div>
+                    <div class="employee-summary-item"><label>Overtime</label><span style="color:#e67e22;">{{ $summary['overtime_hours'] }}</span></div>
                 </div>
             </div>
 
-            <!-- Employee Table -->
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 14%;">Date</th>
-                        <th style="width: 14%;">Day</th>
-                        <th style="width: 12%;">Check In</th>
-                        <th style="width: 12%;">Check Out</th>
-                        <th style="width: 12%;">Regular</th>
-                        <th style="width: 12%;">Overtime</th>
-                        <th style="width: 12%;">Total</th>
-                        <th style="width: 12%;">Status</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-                @php $printedAnyRow = false; @endphp
-
-                @for($cursor = $periodStart->copy(); $cursor->lte($periodEnd); $cursor->addDay())
-                    @php
-                        $dateKey = $cursor->format('Y-m-d');
-
-                        $attendance = $attendanceByDate->get($dateKey);
-                        $isVacationDay = isset($vacationDays[$dateKey]);
-
-                        // Skip date entirely if no attendance and not vacation
-                        if (!$attendance && !$isVacationDay) {
-                            continue;
-                        }
-
-                        $printedAnyRow = true;
-                    @endphp
-
-                    {{-- CASE 1: Attendance exists --}}
-                    @if($attendance)
-                        @php
-                            $attendanceDate = $attendance->attendance_date instanceof \Carbon\Carbon
-                                ? $attendance->attendance_date
-                                : \Carbon\Carbon::parse($attendance->attendance_date);
-
-                            $isSunday  = $attendanceDate->dayOfWeek === \Carbon\Carbon::SUNDAY;
-                            $isHoliday = $attendance->status === 'holiday';
-                            $isExtraDay = ($isSunday || $isHoliday) && in_array($attendance->status, ['present','half_day']);
-
-                            // Safe time parsing
-                            $checkInTime = $attendance->check_in_time
-                                ? ($attendance->check_in_time instanceof \Carbon\Carbon ? $attendance->check_in_time : \Carbon\Carbon::parse($attendance->check_in_time))
-                                : null;
-
-                            $checkOutTime = $attendance->check_out_time
-                                ? ($attendance->check_out_time instanceof \Carbon\Carbon ? $attendance->check_out_time : \Carbon\Carbon::parse($attendance->check_out_time))
-                                : null;
-
-                            // ✅ FIX: Check if checkout is after midnight (hour >= 0 AND hour < 8)
-                            $isNextDayOut = false;
-                            if ($checkOutTime && $checkInTime) {
-                                $checkOutHour = (int) $checkOutTime->format('H');
-                                // If checkout time is between 00:00 and 07:59, it's next day
-                                if ($checkOutHour >= 0 && $checkOutHour < 8) {
-                                    $isNextDayOut = true;
-                                }
-                            }
-
-                            // Row class priority: Vacation > Absent/Leave > normal
-                            $rowClass = '';
-                            if ($isVacationDay) {
-                                $rowClass = 'vacation-row';
-                            } elseif ($attendance->status === 'absent') {
-                                $rowClass = 'absent-row';
-                            } elseif ($attendance->status === 'leave') {
-                                $rowClass = 'leave-row';
-                            }
-                        @endphp
-
-                        <tr class="{{ $rowClass }}">
-                            <td>{{ $attendanceDate->format('d M Y') }}</td>
-                            <td>{{ $attendanceDate->format('l') }}</td>
-                            <td class="time-cell">{{ $checkInTime ? $checkInTime->format('h:i A') : '-' }}</td>
-                            <td class="time-cell">
-                                {{ $checkOutTime ? $checkOutTime->format('h:i A') : '-' }}
-                                @if($isNextDayOut)
-                                    <span class="badge-info">NEXT DAY</span>
-                                @endif
-                            </td>
-                            <td class="hours-cell">{{ formatHoursMinutes($attendance->regular_hours ?? 0) }}</td>
-                            <td class="hours-cell">{{ formatHoursMinutes($attendance->overtime_hours ?? 0) }}</td>
-                            <td class="hours-cell"><strong>{{ formatHoursMinutes($attendance->total_hours ?? 0) }}</strong></td>
-                            <td>
-                                @if($isExtraDay)
-                                    <span class="status-badge status-{{ $attendance->status }}">
-                                        {{ ucfirst(str_replace('_',' ', $attendance->status)) }}
-                                    </span>
-                                    <span class="badge-info">EXTRA</span>
-                                @elseif($isSunday && $attendance->status === 'absent')
-                                    <span class="status-badge status-holiday">Sunday (Off)</span>
-                                @else
-                                    <span class="status-badge status-{{ $attendance->status }}">
-                                        {{ ucfirst(str_replace('_',' ', $attendance->status)) }}
-                                    </span>
-                                @endif
-
-                                @if($isVacationDay)
-                                    <span class="badge-vac">VACATION</span>
-                                @endif
-                            </td>
+            @if($hasRows)
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 14%;">Date</th>
+                            <th style="width: 14%;">Day</th>
+                            <th style="width: 12%;">Check In</th>
+                            <th style="width: 12%;">Check Out</th>
+                            <th style="width: 12%;">Regular</th>
+                            <th style="width: 12%;">Overtime</th>
+                            <th style="width: 12%;">Total</th>
+                            <th style="width: 12%;">Status</th>
                         </tr>
-
-                    {{-- CASE 2: No attendance, but vacation day => insert vacation row --}}
-                    @elseif($isVacationDay)
-                        <tr class="vacation-row">
-                            <td>{{ $cursor->format('d M Y') }}</td>
-                            <td>{{ $cursor->format('l') }}</td>
-                            <td class="time-cell">-</td>
-                            <td class="time-cell">-</td>
-                            <td class="hours-cell">0h 0m</td>
-                            <td class="hours-cell">0h 0m</td>
-                            <td class="hours-cell"><strong>0h 0m</strong></td>
-                            <td>
-                                <span class="status-badge status-leave">Vacation</span>
-                            </td>
-                        </tr>
-                    @endif
-                @endfor
-
-                @if(!$printedAnyRow)
-                    <tr>
-                        <td colspan="8" class="empty-message">No attendance/vacation records for this period</td>
-                    </tr>
-                @endif
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach($rows as $row)
+                            <tr class="{{ $row['row_class'] }}">
+                                <td>{{ $row['date_formatted'] }}</td>
+                                <td>{{ $row['day_name'] }}</td>
+                                <td class="time-cell">{{ $row['check_in'] }}</td>
+                                <td class="time-cell">
+                                    {{ $row['check_out'] }}
+                                    @if($row['is_next_day_out'])
+                                        <span class="badge-info">NEXT DAY</span>
+                                    @endif
+                                </td>
+                                <td class="hours-cell">{{ $row['regular_hours'] }}</td>
+                                <td class="hours-cell">{{ $row['overtime_hours'] }}</td>
+                                <td class="hours-cell"><strong>{{ $row['total_hours'] }}</strong></td>
+                                <td>
+                                    <span class="status-badge {{ $row['status_class'] }}">
+                                        {{ $row['status_label'] }}
+                                    </span>
+                                    @if($row['is_extra_day'])
+                                        <span class="badge-info">EXTRA</span>
+                                    @endif
+                                    @if($row['is_vacation'])
+                                        <span class="badge-vac">VACATION</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @else
+                <div class="empty-message">
+                    <p>No attendance/vacation records for this period</p>
+                </div>
+            @endif
         </div>
 
     @empty

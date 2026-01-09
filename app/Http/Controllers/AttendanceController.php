@@ -4,6 +4,7 @@
 namespace App\Http\Controllers;
 
 use Carbon\Carbon;
+use App\Models\Entity;
 use App\Models\Employee;
 use App\Models\Attendance;
 use Illuminate\Http\Request;
@@ -11,70 +12,111 @@ use App\Models\OvertimeRecord;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Barryvdh\Snappy\Facades\SnappyPdf;
 
 class AttendanceController extends Controller
 {
     public function index(Request $request)
     {
-        // Check if this is an AJAX request
+        // AJAX request
         if ($request->wantsJson() || $request->ajax()) {
 
-            // Base query for main results (with JOIN for ordering)
+            /*
+            |--------------------------------------------------------------------------
+            | MAIN QUERY (WITH JOIN FOR ORDERING)
+            |--------------------------------------------------------------------------
+            */
             $query = Attendance::select('attendances.*')
                 ->leftJoin('employees', 'attendances.employee_id', '=', 'employees.id')
-                ->with(['employee:id,staff_number,employee_name']);
+                ->with([
+                    'employee:id,staff_number,employee_name,entity_id',
+                    'employee.entity:id,entity_name'
+                ]);
 
-            // 1. Date filtering
-            if ($request->has('date') && $request->date) {
+            // Date filtering
+            if ($request->date) {
                 $query->whereDate('attendances.attendance_date', $request->date);
-            } elseif ($request->has('start_date') && $request->has('end_date') && $request->start_date && $request->end_date) {
-                $query->whereBetween('attendances.attendance_date', [$request->start_date, $request->end_date]);
+            } elseif ($request->start_date && $request->end_date) {
+                $query->whereBetween('attendances.attendance_date', [
+                    $request->start_date,
+                    $request->end_date
+                ]);
             } else {
-                $query->whereDate('attendances.attendance_date', now()->format('Y-m-d'));
+                $query->whereDate('attendances.attendance_date', now()->toDateString());
             }
 
-            // 2. Employee filter
-            if ($request->has('employee_id') && $request->employee_id) {
+            // Entity filter
+            if ($request->entity_id) {
+                $query->where('employees.entity_id', $request->entity_id);
+            }
+
+            // Employee filter
+            if ($request->employee_id) {
                 $query->where('attendances.employee_id', $request->employee_id);
             }
 
-            // 3. Status filter
-            if ($request->has('status') && $request->status) {
-                $query->where('attendances.status', $request->status); // ✅ FIXED: Table prefix
+            // Status filter
+            if ($request->status) {
+                $query->where('attendances.status', $request->status);
             }
 
-            // ===== SEPARATE STATS QUERY without JOIN (avoids ambiguity) =====
-            $statsQuery = Attendance::query(); // Fresh query without JOIN
+            /*
+            |--------------------------------------------------------------------------
+            | STATS QUERY (NO JOIN, SAFE & ACCURATE)
+            |--------------------------------------------------------------------------
+            */
+            $baseStatsQuery = Attendance::query();
 
-            // Apply same date filters to stats
-            if ($request->has('date') && $request->date) {
-                $statsQuery->whereDate('attendance_date', $request->date);
-            } elseif ($request->has('start_date') && $request->has('end_date') && $request->start_date && $request->end_date) {
-                $statsQuery->whereBetween('attendance_date', [$request->start_date, $request->end_date]);
+            // Same date filters
+            if ($request->date) {
+                $baseStatsQuery->whereDate('attendance_date', $request->date);
+            } elseif ($request->start_date && $request->end_date) {
+                $baseStatsQuery->whereBetween('attendance_date', [
+                    $request->start_date,
+                    $request->end_date
+                ]);
             } else {
-                $statsQuery->whereDate('attendance_date', now()->format('Y-m-d'));
+                $baseStatsQuery->whereDate('attendance_date', now()->toDateString());
             }
 
-            // Apply same employee filter to stats
-            if ($request->has('employee_id') && $request->employee_id) {
-                $statsQuery->where('employee_id', $request->employee_id);
+            // Same entity filter
+            if ($request->entity_id) {
+                $baseStatsQuery->whereHas('employee', function ($q) use ($request) {
+                    $q->where('entity_id', $request->entity_id);
+                });
             }
 
+            // Same employee filter
+            if ($request->employee_id) {
+                $baseStatsQuery->where('employee_id', $request->employee_id);
+            }
+
+            // ✅ FIX: CLONE QUERY PER STATUS
             $stats = [
-                'present'   => $statsQuery->where('status', 'present')->count(),
-                'absent'    => $statsQuery->where('status', 'absent')->count(),
-                'leave'     => $statsQuery->where('status', 'leave')->count(),
-                'half_day'  => $statsQuery->where('status', 'half_day')->count(),
+                'present'  => (clone $baseStatsQuery)->where('status', 'present')->count(),
+                'absent'   => (clone $baseStatsQuery)->where('status', 'absent')->count(),
+                'leave'    => (clone $baseStatsQuery)->where('status', 'leave')->count(),
+                'half_day' => (clone $baseStatsQuery)->where('status', 'half_day')->count(),
             ];
 
-            // ✅ Main query ordering (JOIN works here)
-            $attendances = $query->orderBy('employees.staff_number', 'asc')
+            /*
+            |--------------------------------------------------------------------------
+            | PAGINATED RESULTS
+            |--------------------------------------------------------------------------
+            */
+            $attendances = $query
+                ->orderBy('employees.staff_number', 'asc')
                 ->orderBy('attendances.attendance_date', 'desc')
                 ->orderBy('attendances.id', 'desc')
                 ->paginate(15);
 
-            // Format attendances
+            /*
+            |--------------------------------------------------------------------------
+            | FORMAT RESPONSE
+            |--------------------------------------------------------------------------
+            */
             $formattedAttendances = $attendances->map(function ($attendance) {
+
                 $checkIn  = $attendance->check_in_time ? Carbon::parse($attendance->check_in_time) : null;
                 $checkOut = $attendance->check_out_time ? Carbon::parse($attendance->check_out_time) : null;
 
@@ -85,11 +127,14 @@ class AttendanceController extends Controller
 
                 return [
                     'id' => $attendance->id,
+
                     'employee' => [
                         'id' => $attendance->employee_id,
                         'employee_name' => $attendance->employee->employee_name ?? 'N/A',
                         'staff_number' => $attendance->employee->staff_number ?? 'N/A',
+                        'entity_name' => $attendance->employee->entity->entity_name ?? 'N/A',
                     ],
+
                     'staff_number' => $attendance->employee->staff_number ?? 'N/A',
                     'attendance_date' => $attendance->attendance_date->format('Y-m-d'),
 
@@ -110,27 +155,33 @@ class AttendanceController extends Controller
                 ];
             });
 
-            $pagination = [
-                'current_page' => $attendances->currentPage(),
-                'last_page' => $attendances->lastPage(),
-                'per_page' => $attendances->perPage(),
-                'total' => $attendances->total(),
-            ];
-
             return response()->json([
                 'attendances' => $formattedAttendances,
-                'pagination' => $pagination,
+                'pagination' => [
+                    'current_page' => $attendances->currentPage(),
+                    'last_page' => $attendances->lastPage(),
+                    'per_page' => $attendances->perPage(),
+                    'total' => $attendances->total(),
+                ],
                 'stats' => $stats,
             ]);
         }
 
-        // Browser request - return Blade view
-        $employees = Employee::whereIn('status', ['active', 'vacation'])
+        /*
+        |--------------------------------------------------------------------------
+        | BLADE VIEW (NON-AJAX)
+        |--------------------------------------------------------------------------
+        */
+        $entities = Entity::orderBy('entity_name')->get();
+
+        $employees = Employee::with('entity')
+            ->whereIn('status', ['active', 'vacation'])
             ->orderBy('staff_number', 'asc')
             ->orderBy('employee_name')
             ->get();
 
         return view('attendances.index', [
+            'entities' => $entities,
             'employees' => $employees,
             'request' => $request,
         ]);
@@ -743,12 +794,14 @@ class AttendanceController extends Controller
                 'format' => 'required|in:csv,pdf'
             ]);
 
-            $query = Attendance::with('employee')
+            $query = Attendance::with(['employee.entity'])
                 ->whereBetween('attendance_date', [$validated['start_date'], $validated['end_date']]);
 
             if ($request->employee_id) {
                 $query->where('employee_id', $request->employee_id);
             }
+
+            $query->whereHas('employee');
 
             $attendances = $query->orderBy('attendance_date', 'asc')
                                 ->orderBy('staff_number', 'asc')
@@ -761,7 +814,6 @@ class AttendanceController extends Controller
                 ], 404);
             }
 
-            // Clean output buffer BEFORE choosing format
             while (ob_get_level() > 0) {
                 ob_end_clean();
             }
@@ -794,20 +846,18 @@ class AttendanceController extends Controller
     private function exportToPdf($attendances, $startDate, $endDate)
     {
         try {
-            while (ob_get_level() > 0) {
-                ob_end_clean();
-            }
+            // Increase execution time and memory (Snappy is fast, but safe)
+            set_time_limit(600);
+            ini_set('memory_limit', '1024M');
 
-            ini_set('display_errors', '0');
-
-            // Group attendances by employee instead of date
+            // === ALL PRECOMPUTATION LOGIC REMAINS EXACTLY THE SAME (keeps your current data structure) ===
             $attendancesByEmployee = $attendances->groupBy(function ($item) {
                 return $item->employee_id;
             })->sortBy(function ($group) {
-                return $group->first()->employee->employee_name;
+                $emp = $group->first()->employee;
+                return $emp ? $emp->staff_number : 'ZZZ';
             });
 
-            // ✅ Load vacations in the selected date range for employees in this report
             $employeeIds = $attendancesByEmployee->keys()->values();
 
             $vacationsByEmployee = \App\Models\EmployeeVacation::query()
@@ -817,7 +867,6 @@ class AttendanceController extends Controller
                 ->get()
                 ->groupBy('employee_id');
 
-            // Calculate summary for entire period
             $extraDaysWorked = $attendances->filter(function ($att) {
                 $isSunday = $att->attendance_date->dayOfWeek === Carbon::SUNDAY;
                 $isHoliday = $att->status === 'holiday';
@@ -827,12 +876,166 @@ class AttendanceController extends Controller
 
             $totalOvertimeHours = $attendances->sum('overtime_hours') + $extraDaysWorked->sum('total_hours');
 
+            $reportData = [];
+            $periodStart = Carbon::parse($startDate)->startOfDay();
+            $periodEnd = Carbon::parse($endDate)->startOfDay();
+
+            foreach ($attendancesByEmployee as $employeeId => $employeeAttendances) {
+                $employee = $employeeAttendances->first()->employee;
+                if (!$employee) continue;
+
+                $empPresent = $employeeAttendances->where('status', 'present')->count();
+                $empAbsent = $employeeAttendances->where('status', 'absent')->count();
+                $empHalfDay = $employeeAttendances->where('status', 'half_day')->count();
+                $empLeave = $employeeAttendances->where('status', 'leave')->count();
+                $empHoliday = $employeeAttendances->where('status', 'holiday')->count();
+
+                $empExtraDays = $employeeAttendances->filter(function ($att) {
+                    $attDate = $att->attendance_date instanceof Carbon
+                        ? $att->attendance_date
+                        : Carbon::parse($att->attendance_date);
+
+                    $isSunday = $attDate->dayOfWeek === Carbon::SUNDAY;
+                    $isHoliday = $att->status === 'holiday';
+                    $hasWorked = in_array($att->status, ['present', 'half_day']);
+                    return ($isSunday || $isHoliday) && $hasWorked;
+                });
+
+                $empExtraDaysCount = $empExtraDays->count();
+                $empExtraHours = $empExtraDays->sum('total_hours');
+                $empTotalHours = $employeeAttendances->sum('total_hours');
+                $empOvertimeHours = $employeeAttendances->sum('overtime_hours') + $empExtraHours;
+
+                $vacationDays = [];
+                $vacations = $vacationsByEmployee[$employeeId] ?? collect();
+                foreach ($vacations as $v) {
+                    $cursor = $v->start_date instanceof Carbon ? $v->start_date->copy() : Carbon::parse($v->start_date);
+                    $end = $v->end_date instanceof Carbon ? $v->end_date->copy() : Carbon::parse($v->end_date);
+                    while ($cursor->lte($end)) {
+                        $vacationDays[$cursor->format('Y-m-d')] = true;
+                        $cursor->addDay();
+                    }
+                }
+
+                $attendanceByDate = $employeeAttendances->keyBy(function($att){
+                    $d = $att->attendance_date instanceof Carbon ? $att->attendance_date : Carbon::parse($att->attendance_date);
+                    return $d->format('Y-m-d');
+                });
+
+                $rows = [];
+                $cursor = $periodStart->copy();
+                while ($cursor->lte($periodEnd)) {
+                    $dateKey = $cursor->format('Y-m-d');
+                    $attendance = $attendanceByDate->get($dateKey);
+                    $isVacationDay = isset($vacationDays[$dateKey]);
+
+                    if (!$attendance && !$isVacationDay) {
+                        $cursor->addDay();
+                        continue;
+                    }
+
+                    $row = [
+                        'date_formatted' => $cursor->format('d M Y'),
+                        'day_name' => $cursor->format('l'),
+                        'check_in' => '-',
+                        'check_out' => '-',
+                        'regular_hours' => '0h 0m',
+                        'overtime_hours' => '0h 0m',
+                        'total_hours' => '0h 0m',
+                        'status_label' => 'Vacation',
+                        'status_class' => 'status-leave',
+                        'row_class' => 'vacation-row',
+                        'is_vacation' => true,
+                        'is_extra_day' => false,
+                        'is_next_day_out' => false,
+                    ];
+
+                    if ($attendance) {
+                        $attendanceDate = $attendance->attendance_date instanceof Carbon
+                            ? $attendance->attendance_date
+                            : Carbon::parse($attendance->attendance_date);
+
+                        $isSunday = $attendanceDate->dayOfWeek === Carbon::SUNDAY;
+                        $isHoliday = $attendance->status === 'holiday';
+                        $isExtraDay = ($isSunday || $isHoliday) && in_array($attendance->status, ['present', 'half_day']);
+
+                        $checkInTime = $attendance->check_in_time
+                            ? ($attendance->check_in_time instanceof Carbon ? $attendance->check_in_time : Carbon::parse($attendance->check_in_time))
+                            : null;
+
+                        $checkOutTime = $attendance->check_out_time
+                            ? ($attendance->check_out_time instanceof Carbon ? $attendance->check_out_time : Carbon::parse($attendance->check_out_time))
+                            : null;
+
+                        $isNextDayOut = false;
+                        if ($checkOutTime && $checkInTime) {
+                            $checkOutHour = (int) $checkOutTime->format('H');
+                            if ($checkOutHour >= 0 && $checkOutHour < 8) {
+                                $isNextDayOut = true;
+                            }
+                        }
+
+                        $statusLabel = ucfirst(str_replace('_', ' ', $attendance->status));
+                        $statusClass = 'status-' . $attendance->status;
+                        $rowClass = '';
+                        if ($isVacationDay) {
+                            $rowClass = 'vacation-row';
+                            $statusLabel .= ' (Vacation)';
+                        } elseif ($attendance->status === 'absent') {
+                            $rowClass = 'absent-row';
+                        } elseif ($attendance->status === 'leave') {
+                            $rowClass = 'leave-row';
+                        }
+
+                        if ($isExtraDay) {
+                            $statusLabel .= ' (Extra Day)';
+                            $rowClass .= ' extra-day';
+                        } elseif ($isSunday && $attendance->status === 'absent') {
+                            $statusLabel = 'Sunday (Off)';
+                            $statusClass = 'status-holiday';
+                        }
+
+                        $row = [
+                            'date_formatted' => $attendanceDate->format('d M Y'),
+                            'day_name' => $attendanceDate->format('l'),
+                            'check_in' => $checkInTime ? $checkInTime->format('h:i A') : '-',
+                            'check_out' => $checkOutTime ? $checkOutTime->format('h:i A') : '-',
+                            'regular_hours' => $this->formatHoursMinutes($attendance->regular_hours ?? 0),
+                            'overtime_hours' => $this->formatHoursMinutes($attendance->overtime_hours ?? 0),
+                            'total_hours' => $this->formatHoursMinutes($attendance->total_hours ?? 0),
+                            'status_label' => $statusLabel,
+                            'status_class' => $statusClass,
+                            'row_class' => $rowClass,
+                            'is_vacation' => $isVacationDay,
+                            'is_extra_day' => $isExtraDay,
+                            'is_next_day_out' => $isNextDayOut,
+                        ];
+                    }
+
+                    $rows[] = $row;
+                    $cursor->addDay();
+                }
+
+                $reportData[] = [
+                    'employee' => $employee,
+                    'summary' => [
+                        'present' => $empPresent,
+                        'absent' => $empAbsent,
+                        'half_day' => $empHalfDay,
+                        'leave' => $empLeave,
+                        'extra_days' => $empExtraDaysCount,
+                        'total_hours' => $this->formatHoursMinutes($empTotalHours),
+                        'overtime_hours' => $this->formatHoursMinutes($empOvertimeHours),
+                    ],
+                    'rows' => $rows,
+                ];
+            }
+
             $data = [
-                'attendancesByEmployee' => $attendancesByEmployee,
-                'vacationsByEmployee'   => $vacationsByEmployee, // ✅ NEW for timeline highlight
-                'start_date'            => $startDate,
-                'end_date'              => $endDate,
-                'total_records'         => $attendances->count(),
+                'report_data' => $reportData,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'total_records' => $attendances->count(),
                 'summary' => [
                     'total_present'          => $attendances->where('status', 'present')->count(),
                     'total_absent'           => $attendances->where('status', 'absent')->count(),
@@ -841,34 +1044,29 @@ class AttendanceController extends Controller
                     'total_holiday'          => $attendances->where('status', 'holiday')->count(),
                     'total_extra_days'       => $extraDaysWorked->count(),
                     'total_extra_days_hours' => $extraDaysWorked->sum('total_hours'),
-                    'total_hours'            => $attendances->sum('total_hours'),
-                    'total_regular_hours'    => $attendances->sum('regular_hours'),
-                    'total_overtime_hours'   => $totalOvertimeHours,
+                    'total_hours'            => $this->formatHoursMinutes($attendances->sum('total_hours')),
+                    'total_regular_hours'    => $this->formatHoursMinutes($attendances->sum('regular_hours')),
+                    'total_overtime_hours'   => $this->formatHoursMinutes($totalOvertimeHours),
                 ],
             ];
 
-            set_time_limit(120);
-            ini_set('memory_limit', '256M');
-
-            $pdf = PDF::loadView('attendances.report-pdf', $data)
-                ->setPaper('a4', 'landscape')
-                ->setOptions([
-                    'isHtml5ParserEnabled' => true,
-                    'isRemoteEnabled'      => true,
-                    'debugKeepTemp'        => false,
-                    'chroot'               => public_path(),
-                    'enable_php'           => false,
-                ]);
+            // === SNAPPY PDF GENERATION (fast & preserves exact design) ===
+            $pdf = SnappyPdf::loadView('attendances.report-pdf', $data)
+                ->setPaper('a4')
+                ->setOrientation('landscape')
+                ->setOption('margin-top', 10)
+                ->setOption('margin-bottom', 10)
+                ->setOption('margin-left', 10)
+                ->setOption('margin-right', 10)
+                ->setOption('page-size', 'A4');
 
             $filename = 'attendance_report_' . $startDate . '_to_' . $endDate . '.pdf';
 
             return $pdf->download($filename);
 
         } catch (\Exception $e) {
-            Log::error('PDF Export error: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
-                'line'  => $e->getLine(),
-                'file'  => $e->getFile()
+            Log::error('PDF Export error (Snappy): ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -876,6 +1074,23 @@ class AttendanceController extends Controller
                 'message' => 'PDF generation failed: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    // Helper method for formatting hours (moved from Blade)
+    private function formatHoursMinutes($decimalHours)
+    {
+        if (!$decimalHours || $decimalHours == 0) return '0h 0m';
+
+        $hours = floor($decimalHours);
+        $minutes = round(($decimalHours - $hours) * 60);
+
+        // Handle rounding edge case
+        if ($minutes == 60) {
+            $hours++;
+            $minutes = 0;
+        }
+
+        return $hours . 'h ' . $minutes . 'm';
     }
 
     private function exportToCsv($attendances, $startDate, $endDate)
@@ -954,7 +1169,8 @@ class AttendanceController extends Controller
 
                 // ===== EMPLOYEE-WISE ATTENDANCE DETAILS =====
                 $attendancesByEmployee = $attendances->groupBy('employee_id')->sortBy(function ($group) {
-                    return $group->first()->employee->employee_name;
+                    $emp = $group->first()->employee;
+                    return $emp ? $emp->staff_number : 'ZZZ'; // ✅ Null-safe
                 });
 
                 // ✅ Vacation data used in CSV too (optional column removed; used for label)
@@ -969,6 +1185,7 @@ class AttendanceController extends Controller
 
                 foreach ($attendancesByEmployee as $employeeId => $employeeAttendances) {
                     $employee = $employeeAttendances->first()->employee;
+                    if (!$employee) continue; // ✅ Skip if no employee
 
                     // Build date=>true vacation map for this employee
                     $vacationDays = [];
@@ -984,7 +1201,7 @@ class AttendanceController extends Controller
                     // Employee Header
                     fputcsv($file, ['=' . str_repeat('=', 100)]);
                     fputcsv($file, ['EMPLOYEE: ' . $employee->employee_name]);
-                    fputcsv($file, ['Staff ID: ' . $employee->staff_number . ' | Designation: ' . ($employee->designation ?? 'N/A')]);
+                    fputcsv($file, ['Staff ID: ' . $employee->staff_number . ' | Designation: ' . ($employee->designation ?? 'N/A') . ' | Entity: ' . ($employee->entity->entity_name ?? 'N/A')]);
                     fputcsv($file, ['=' . str_repeat('=', 100)]);
                     fputcsv($file, []);
 
@@ -1046,67 +1263,102 @@ class AttendanceController extends Controller
                         'Status'
                     ]);
 
-                    foreach ($employeeAttendances->sortBy('attendance_date') as $attendance) {
-                        $attendanceDate = $attendance->attendance_date instanceof Carbon
-                            ? $attendance->attendance_date
-                            : Carbon::parse($attendance->attendance_date);
+                    // ✅ PRECOMPUTE CSV ROWS FOR THIS EMPLOYEE (similar to PDF optimization)
+                    $periodStart = Carbon::parse($startDate)->startOfDay();
+                    $periodEnd = Carbon::parse($endDate)->startOfDay();
+                    $attendanceByDate = $employeeAttendances->keyBy(function($att){
+                        $d = $att->attendance_date instanceof Carbon ? $att->attendance_date : Carbon::parse($att->attendance_date);
+                        return $d->format('Y-m-d');
+                    });
 
-                        $dateKey = $attendanceDate->format('Y-m-d');
-                        $isVacation = isset($vacationDays[$dateKey]);
+                    $cursor = $periodStart->copy();
+                    while ($cursor->lte($periodEnd)) {
+                        $dateKey = $cursor->format('Y-m-d');
+                        $attendance = $attendanceByDate->get($dateKey);
+                        $isVacationDay = isset($vacationDays[$dateKey]);
 
-                        $isSunday = $attendanceDate->dayOfWeek === Carbon::SUNDAY;
-                        $isHoliday = $attendance->status === 'holiday';
-                        $isExtraDay = ($isSunday || $isHoliday) && in_array($attendance->status, ['present', 'half_day']);
-
-                        // Day label
-                        $dayLabel = $attendanceDate->format('l');
-                        if ($isExtraDay) {
-                            $dayLabel .= ' (EXTRA DAY)';
+                        // Skip date entirely if no attendance and not vacation
+                        if (!$attendance && !$isVacationDay) {
+                            $cursor->addDay();
+                            continue;
                         }
 
-                        // Status label (+ Vacation marker)
-                        $statusLabel = ucfirst(str_replace('_', ' ', $attendance->status));
-                        if ($isExtraDay) {
-                            $statusLabel .= ' (Extra Day)';
-                        } elseif ($isSunday && $attendance->status === 'absent') {
-                            $statusLabel = 'Sunday (Off Day)';
-                        }
-                        if ($isVacation) {
-                            $statusLabel .= ' (Vacation)';
-                        }
+                        if ($attendance) {
+                            $attendanceDate = $attendance->attendance_date instanceof Carbon
+                                ? $attendance->attendance_date
+                                : Carbon::parse($attendance->attendance_date);
 
-                        // ✅ Time formatting AM/PM + next-day indicator on checkout
-                        $checkInFormatted = '-';
-                        if ($attendance->check_in_time) {
-                            $checkInTime = $attendance->check_in_time instanceof Carbon
-                                ? $attendance->check_in_time
-                                : Carbon::parse($attendance->check_in_time);
-                            $checkInFormatted = $checkInTime->format('h:i A');
-                        }
+                            $dateKey = $attendanceDate->format('Y-m-d');
+                            $isVacation = isset($vacationDays[$dateKey]);
 
-                        $checkOutFormatted = '-';
-                        if ($attendance->check_out_time) {
-                            $checkOutTime = $attendance->check_out_time instanceof Carbon
-                                ? $attendance->check_out_time
-                                : Carbon::parse($attendance->check_out_time);
+                            $isSunday = $attendanceDate->dayOfWeek === Carbon::SUNDAY;
+                            $isHoliday = $attendance->status === 'holiday';
+                            $isExtraDay = ($isSunday || $isHoliday) && in_array($attendance->status, ['present', 'half_day']);
 
-                            $checkOutFormatted = $checkOutTime->format('h:i A');
-
-                            if ($checkOutTime->toDateString() !== $attendanceDate->toDateString()) {
-                                $checkOutFormatted .= ' (+1 DAY)';
+                            // Day label
+                            $dayLabel = $attendanceDate->format('l');
+                            if ($isExtraDay) {
+                                $dayLabel .= ' (EXTRA DAY)';
                             }
+
+                            // Status label (+ Vacation marker)
+                            $statusLabel = ucfirst(str_replace('_', ' ', $attendance->status));
+                            if ($isExtraDay) {
+                                $statusLabel .= ' (Extra Day)';
+                            } elseif ($isSunday && $attendance->status === 'absent') {
+                                $statusLabel = 'Sunday (Off Day)';
+                            }
+                            if ($isVacation) {
+                                $statusLabel .= ' (Vacation)';
+                            }
+
+                            // ✅ Time formatting AM/PM + next-day indicator on checkout
+                            $checkInFormatted = '-';
+                            if ($attendance->check_in_time) {
+                                $checkInTime = $attendance->check_in_time instanceof Carbon
+                                    ? $attendance->check_in_time
+                                    : Carbon::parse($attendance->check_in_time);
+                                $checkInFormatted = $checkInTime->format('h:i A');
+                            }
+
+                            $checkOutFormatted = '-';
+                            if ($attendance->check_out_time) {
+                                $checkOutTime = $attendance->check_out_time instanceof Carbon
+                                    ? $attendance->check_out_time
+                                    : Carbon::parse($attendance->check_out_time);
+
+                                $checkOutFormatted = $checkOutTime->format('h:i A');
+
+                                if ($checkOutTime->toDateString() !== $attendanceDate->toDateString()) {
+                                    $checkOutFormatted .= ' (+1 DAY)';
+                                }
+                            }
+
+                            fputcsv($file, [
+                                $attendanceDate->format('Y-m-d'),
+                                $dayLabel,
+                                $checkInFormatted,
+                                $checkOutFormatted,
+                                number_format($attendance->regular_hours ?? 0, 2) . 'h',
+                                number_format($attendance->overtime_hours ?? 0, 2) . 'h',
+                                number_format($attendance->total_hours ?? 0, 2) . 'h',
+                                $statusLabel,
+                            ]);
+                        } else {
+                            // Vacation row
+                            fputcsv($file, [
+                                $cursor->format('Y-m-d'),
+                                $cursor->format('l'),
+                                '-',
+                                '-',
+                                '0h',
+                                '0h',
+                                '0h',
+                                'Vacation',
+                            ]);
                         }
 
-                        fputcsv($file, [
-                            $attendanceDate->format('Y-m-d'),
-                            $dayLabel,
-                            $checkInFormatted,
-                            $checkOutFormatted,
-                            number_format($attendance->regular_hours ?? 0, 2) . 'h',
-                            number_format($attendance->overtime_hours ?? 0, 2) . 'h',
-                            number_format($attendance->total_hours ?? 0, 2) . 'h',
-                            $statusLabel,
-                        ]);
+                        $cursor->addDay();
                     }
 
                     fputcsv($file, []);

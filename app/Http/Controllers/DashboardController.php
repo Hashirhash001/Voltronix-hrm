@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/DashboardController.php
 
 namespace App\Http\Controllers;
 
@@ -8,7 +7,6 @@ use App\Models\Entity;
 use App\Models\Vehicle;
 use App\Models\Attendance;
 use Carbon\Carbon;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -19,37 +17,67 @@ class DashboardController extends Controller
         $currentMonth = $today->month;
         $currentYear = $today->year;
 
-        // Employee Statistics
+        // ================= EMPLOYEE STATS =================
+        $periodEnd = Carbon::create($currentYear, $currentMonth, 1)->endOfMonth();
+        if ($currentMonth == now()->month && $currentYear == now()->year) {
+            $periodEnd = Carbon::yesterday();
+        }
+
         $totalEmployees = Employee::count();
-        $activeEmployees = Employee::where('status', 'active')->count();
+
+        $activeEmployees = Employee::where('status', 'active')
+            ->whereDate('duty_joined_date', '<=', $periodEnd)
+            ->count();
+
         $onVacation = Employee::where('status', 'vacation')->count();
         $inactiveEmployees = Employee::where('status', 'inactive')->count();
 
-        // Entity & Vehicle Statistics
+        // ================= ENTITY / VEHICLE STATS =================
         $totalEntities = Entity::count();
         $activeEntities = Entity::where('status', 'active')->count();
+
         $totalVehicles = Vehicle::count();
         $activeVehicles = Vehicle::where('status', 'active')->count();
 
-        // Today's Attendance Statistics
-        $todayAttendance = Attendance::whereDate('attendance_date', $today)->count();
-        $todayPresent = Attendance::whereDate('attendance_date', $today)->where('status', 'present')->count();
-        $todayAbsent = Attendance::whereDate('attendance_date', $today)->where('status', 'absent')->count();
-        $todayHalfDay = Attendance::whereDate('attendance_date', $today)->where('status', 'half_day')->count();
-        $todayLeave = Attendance::whereDate('attendance_date', $today)->where('status', 'leave')->count();
+        // ================= TODAY ATTENDANCE =================
+        $todayAttendanceQuery = Attendance::whereDate('attendance_date', $today)
+            ->whereIn('status', ['present', 'absent', 'leave', 'half_day'])
+            ->whereHas('employee', function ($q) use ($today) {
+                $q->where('status', 'active')
+                    ->whereDate('duty_joined_date', '<=', $today);
+            });
 
-        // Monthly Statistics with Performance Metrics
-        $monthlyStats = $this->getMonthlyAttendanceStats($currentMonth, $currentYear);
+        $todayAttendance = $todayAttendanceQuery->count();
 
-        // Document Expiry Alerts (All sources: Employee, Entity, Vehicle)
+        $todayStatusCounts = $todayAttendanceQuery
+            ->select('status', DB::raw('COUNT(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        $todayPresent = $todayStatusCounts['present'] ?? 0;
+        $todayAbsent = $todayStatusCounts['absent'] ?? 0;
+        $todayHalfDay = $todayStatusCounts['half_day'] ?? 0;
+        $todayLeave = $todayStatusCounts['leave'] ?? 0;
+
+        // ================= MONTHLY STATS (CACHED) =================
+        $holidayVersion = Attendance::where('status', 'holiday')->max('updated_at');
+
+        $monthlyStats = cache()->remember(
+            "dashboard_monthly_stats_{$currentMonth}_{$currentYear}_{$holidayVersion}",
+            now()->addMinutes(10),
+            fn() => $this->getMonthlyAttendanceStats($currentMonth, $currentYear)
+        );
+
+        // ================= DOCUMENT ALERTS =================
         $expiringDocuments = $this->getExpiringDocuments();
 
-        // Recent Attendances
-        $recentAttendances = Attendance::with(['employee'])
-                                      ->orderBy('attendance_date', 'desc')
-                                      ->orderBy('created_at', 'desc')
-                                      ->limit(10)
-                                      ->get();
+        // ================= RECENT ATTENDANCE =================
+        $recentAttendances = Attendance::with('employee')
+            ->whereHas('employee', fn($q) => $q->where('status', 'active'))
+            ->orderBy('attendance_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get();
 
         return view('dashboard', compact(
             'totalEmployees',
@@ -71,269 +99,260 @@ class DashboardController extends Controller
         ));
     }
 
-    private function getMonthlyAttendanceStats($currentMonth, $currentYear)
+    // ================= MONTHLY ATTENDANCE =================
+    private function getMonthlyAttendanceStats($month, $year)
     {
-        $today = Carbon::today();
-        $yesterday = Carbon::yesterday(); // ✅ Calculate up to yesterday
-        $activeEmployees = Employee::where('status', 'active')->count();
+        $yesterday = Carbon::yesterday();
 
-        // Get actual working days (excluding holidays marked in attendance)
-        $workingDaysThisMonth = $this->getWorkingDays($currentMonth, $currentYear);
+        $periodEnd = Carbon::create($year, $month, 1)->endOfMonth();
+        if ($month == now()->month && $year == now()->year) {
+            $periodEnd = $yesterday;
+        }
 
-        // Total possible attendance (active employees × actual working days)
-        $expectedAttendance = $activeEmployees * $workingDaysThisMonth;
+        // Active employees valid in this period
+        $employees = Employee::where('status', 'active')
+            ->whereDate('duty_joined_date', '<=', $periodEnd)
+            ->get(['id', 'duty_joined_date']);
 
-        // Get attendance counts (up to yesterday only)
-        $monthlyPresent = Attendance::whereMonth('attendance_date', $currentMonth)
-                                   ->whereYear('attendance_date', $currentYear)
-                                   ->whereDate('attendance_date', '<=', $yesterday) // ✅ Only up to yesterday
-                                   ->where('status', 'present')
-                                   ->count();
+        if ($employees->isEmpty()) {
+            return $this->emptyMonthlyStats();
+        }
 
-        $monthlyAbsent = Attendance::whereMonth('attendance_date', $currentMonth)
-                                  ->whereYear('attendance_date', $currentYear)
-                                  ->whereDate('attendance_date', '<=', $yesterday) // ✅ Only up to yesterday
-                                  ->where('status', 'absent')
-                                  ->count();
+        // Cache holiday dates ONCE
+        $holidayDates = $this->getHolidayDateArray($month, $year);
 
-        $monthlyLeave = Attendance::whereMonth('attendance_date', $currentMonth)
-                                 ->whereYear('attendance_date', $currentYear)
-                                 ->whereDate('attendance_date', '<=', $yesterday) // ✅ Only up to yesterday
-                                 ->where('status', 'leave')
-                                 ->count();
+        // ===== Expected Attendance =====
+        $expectedAttendance = 0;
 
-        $monthlyHalfDay = Attendance::whereMonth('attendance_date', $currentMonth)
-                                   ->whereYear('attendance_date', $currentYear)
-                                   ->whereDate('attendance_date', '<=', $yesterday) // ✅ Only up to yesterday
-                                   ->where('status', 'half_day')
-                                   ->count();
+        foreach ($employees as $employee) {
+            $start = Carbon::parse($employee->duty_joined_date);
+            if ($start->month != $month || $start->year != $year) {
+                $start = Carbon::create($year, $month, 1);
+            }
 
-        // Calculate percentages based on actual working days
-        $attendanceRate = $expectedAttendance > 0 ? round(($monthlyPresent / $expectedAttendance) * 100, 1) : 0;
-        $absenteeismRate = $expectedAttendance > 0 ? round(($monthlyAbsent / $expectedAttendance) * 100, 1) : 0;
+            $expectedAttendance += $this->countWorkingDaysBetween(
+                $start,
+                $periodEnd,
+                $holidayDates
+            );
+        }
 
-        // Average working hours (only for present and half_day statuses, up to yesterday)
-        $averageHours = Attendance::whereMonth('attendance_date', $currentMonth)
-                                  ->whereYear('attendance_date', $currentYear)
-                                  ->whereDate('attendance_date', '<=', $yesterday) // ✅ Only up to yesterday
-                                  ->whereIn('status', ['present', 'half_day'])
-                                  ->avg('total_hours') ?? 0;
+        // ===== Attendance Summary (DEDUPED) =====
+        $attendance = Attendance::select(
+            'status',
+            DB::raw('COUNT(DISTINCT CONCAT(employee_id, "-", attendance_date)) as total'),
+            DB::raw('AVG(total_hours) as avg_hours')
+        )
+            ->whereMonth('attendance_date', $month)
+            ->whereYear('attendance_date', $year)
+            ->whereDate('attendance_date', '<=', $yesterday)
+            ->whereHas('employee', fn($q) => $q->where('status', 'active'))
+            ->groupBy('status')
+            ->get()
+            ->keyBy('status');
 
-        // Get holiday days count for display
-        $holidayDays = $this->getHolidayDays($currentMonth, $currentYear);
+        $present   = $attendance['present']->total   ?? 0;
+        $absent    = $attendance['absent']->total    ?? 0;
+        $leave     = $attendance['leave']->total     ?? 0;
+        $halfDay   = $attendance['half_day']->total  ?? 0;
+
+        // ✅ Half day = 0.5
+        $effectivePresent = $present + ($halfDay * 0.5);
+
+        // ===== Percentages (CLAMPED) =====
+        $attendanceRate = $expectedAttendance > 0
+            ? min(100, round(($effectivePresent / $expectedAttendance) * 100, 1))
+            : 0;
+
+        $absenteeismRate = $expectedAttendance > 0
+            ? round(($absent / $expectedAttendance) * 100, 1)
+            : 0;
+
+        // Average hours (present + half day)
+        $averageHours = collect(['present', 'half_day'])
+            ->map(fn($s) => $attendance[$s]->avg_hours ?? 0)
+            ->avg();
 
         return [
-            'attendance_rate' => $attendanceRate,
-            'absenteeism_rate' => $absenteeismRate,
-            'monthly_present' => $monthlyPresent,
-            'monthly_absent' => $monthlyAbsent,
-            'monthly_leave' => $monthlyLeave,
-            'monthly_half_day' => $monthlyHalfDay,
-            'average_hours' => round($averageHours, 1),
+            'attendance_rate'     => $attendanceRate,
+            'absenteeism_rate'    => $absenteeismRate,
+            'monthly_present'     => $present,
+            'monthly_absent'      => $absent,
+            'monthly_leave'       => $leave,
+            'monthly_half_day'    => $halfDay,
+            'average_hours'       => round($averageHours, 1),
             'expected_attendance' => $expectedAttendance,
-            'working_days' => $workingDaysThisMonth,
-            'holiday_days' => $holidayDays,
-            'active_employees' => $activeEmployees,
+            'working_days'        => $this->getWorkingDays($month, $year),
+            'holiday_days'        => count($holidayDates),
+            'active_employees'    => $employees->count(),
         ];
     }
 
-    /**
-     * Get working days excluding Sundays and holidays
-     * ✅ Only counts up to YESTERDAY (not today)
-     */
+    private function countWorkingDaysBetween($start, $end, array $holidays)
+    {
+        $days = 0;
+        $date = $start->copy();
+
+        while ($date->lte($end)) {
+            if (
+                $date->dayOfWeek !== Carbon::SUNDAY &&
+                !in_array($date->toDateString(), $holidays)
+            ) {
+                $days++;
+            }
+            $date->addDay();
+        }
+
+        return $days;
+    }
+
+    // ================= WORKING / HOLIDAY DAYS =================
     private function getWorkingDays($month, $year)
     {
         $today = Carbon::today();
-        $yesterday = Carbon::yesterday();
-
-        $startDate = Carbon::create($year, $month, 1);
         $endDate = Carbon::create($year, $month, 1)->endOfMonth();
 
-        // ✅ Only count up to YESTERDAY if current month
         if ($month == $today->month && $year == $today->year) {
-            $endDate = $yesterday; // Changed from $today to $yesterday
+            $endDate = Carbon::yesterday();
         }
 
         $workingDays = 0;
-        $currentDate = $startDate->copy();
+        $date = Carbon::create($year, $month, 1);
 
-        while ($currentDate->lte($endDate)) {
-            // Exclude Sundays (weekend)
-            if ($currentDate->dayOfWeek !== Carbon::SUNDAY) {
+        while ($date->lte($endDate)) {
+            if ($date->dayOfWeek !== Carbon::SUNDAY) {
                 $workingDays++;
             }
-            $currentDate->addDay();
+            $date->addDay();
         }
 
-        // Subtract holidays from working days
-        $holidayDays = $this->getHolidayDays($month, $year);
-
-        return max(0, $workingDays - $holidayDays);
+        return max(0, $workingDays - $this->getHolidayDays($month, $year));
     }
 
-    /**
-     * Get the number of days marked as holiday for ALL employees
-     * A day is considered a holiday if all active employees have 'holiday' status
-     * ✅ Only counts holidays up to YESTERDAY
-     */
     private function getHolidayDays($month, $year)
     {
         $today = Carbon::today();
         $yesterday = Carbon::yesterday();
-        $activeEmployees = Employee::where('status', 'active')->count();
 
-        if ($activeEmployees === 0) {
-            return 0;
-        }
-
-        // ✅ Only count holidays up to yesterday if current month
-        $query = Attendance::select('attendance_date', DB::raw('COUNT(DISTINCT employee_id) as employee_count'))
-            ->whereMonth('attendance_date', $month)
+        $query = Attendance::whereMonth('attendance_date', $month)
             ->whereYear('attendance_date', $year)
-            ->where('status', 'holiday');
+            ->where('status', 'holiday')
+            ->groupBy('attendance_date');
 
-        // If current month, only count up to yesterday
+        // Only up to yesterday for current month
         if ($month == $today->month && $year == $today->year) {
             $query->whereDate('attendance_date', '<=', $yesterday);
         }
 
-        $holidayDates = $query->groupBy('attendance_date')
-            ->havingRaw('COUNT(DISTINCT employee_id) = ?', [$activeEmployees])
+        return $query
+            ->select(DB::raw('DATE(attendance_date) as date'))
+            ->distinct()
             ->get()
-            ->map(function ($item) {
-                return Carbon::parse($item->attendance_date);
-            });
+            ->filter(fn ($row) =>
+                Carbon::parse($row->date)->dayOfWeek !== Carbon::SUNDAY
+            )
+            ->count();
 
-        // Filter out Sundays (since they're already excluded from working days)
-        $holidayCount = $holidayDates->filter(function ($date) {
-            return $date->dayOfWeek !== Carbon::SUNDAY;
-        })->count();
-
-        return $holidayCount;
     }
 
+    private function getHolidayDateArray($month, $year)
+    {
+        $today = Carbon::today();
+        $yesterday = Carbon::yesterday();
+
+        $query = Attendance::whereMonth('attendance_date', $month)
+            ->whereYear('attendance_date', $year)
+            ->where('status', 'holiday')
+            ->select(DB::raw('DATE(attendance_date) as date'))
+            ->distinct();
+
+        if ($month == $today->month && $year == $today->year) {
+            $query->whereDate('attendance_date', '<=', $yesterday);
+        }
+
+        return $query->pluck('date')
+            ->map(fn ($d) => Carbon::parse($d)->toDateString())
+            ->toArray();
+
+    }
+
+    private function emptyMonthlyStats()
+    {
+        return [
+            'attendance_rate' => 0,
+            'absenteeism_rate' => 0,
+            'monthly_present' => 0,
+            'monthly_absent' => 0,
+            'monthly_leave' => 0,
+            'monthly_half_day' => 0,
+            'average_hours' => 0,
+            'expected_attendance' => 0,
+            'working_days' => 0,
+            'holiday_days' => 0,
+            'active_employees' => 0,
+        ];
+    }
+
+    // ================= DOCUMENT ALERTS =================
     private function getExpiringDocuments()
     {
         $today = Carbon::today();
-        $allAlerts = collect();
+        $alerts = collect();
 
-        // Employee Documents
-        $employeeDocuments = [
+        $this->collectDocumentAlerts(Employee::where('status', 'active')->get(), [
             'passport_expiry_date' => 'Passport',
             'visa_expiry_date' => 'Visa',
             'visit_expiry_date' => 'Visit Permit',
             'eid_expiry_date' => 'EID',
             'health_insurance_expiry_date' => 'Health Insurance',
             'driving_license_expiry_date' => 'Driving License',
-        ];
+        ], 'Employee', $alerts, $today);
 
-        $employees = Employee::where('status', 'active')->get();
-        foreach ($employees as $employee) {
-            foreach ($employeeDocuments as $field => $documentName) {
-                $alert = $this->createDocumentAlert($employee, $field, $documentName, 'Employee', $today);
-                if ($alert) {
-                    $allAlerts->push($alert);
-                }
-            }
-        }
-
-        // Entity Documents
-        $entityDocuments = [
+        $this->collectDocumentAlerts(Entity::where('status', 'active')->get(), [
             'trade_license_renewal_date' => 'Trade License',
             'est_card_renewal_date' => 'EST Card',
             'warehouse_ejari_renewal_date' => 'Warehouse EJARI',
             'camp_ejari_renewal_date' => 'Camp EJARI',
             'workman_insurance_expiry_date' => 'Workman Insurance',
-        ];
+        ], 'Entity', $alerts, $today);
 
-        $entities = Entity::where('status', 'active')->get();
-        foreach ($entities as $entity) {
-            foreach ($entityDocuments as $field => $documentName) {
-                $alert = $this->createDocumentAlert($entity, $field, $documentName, 'Entity', $today);
-                if ($alert) {
-                    $allAlerts->push($alert);
-                }
-            }
-        }
-
-        // Vehicle Documents
-        $vehicleDocuments = [
+        $this->collectDocumentAlerts(Vehicle::where('status', 'active')->get(), [
             'mulkiya_expiry_date' => 'Mulkiya',
             'driving_license_expiry_date' => 'Driving License',
-        ];
+        ], 'Vehicle', $alerts, $today);
 
-        $vehicles = Vehicle::where('status', 'active')->get();
-        foreach ($vehicles as $vehicle) {
-            foreach ($vehicleDocuments as $field => $documentName) {
-                $alert = $this->createDocumentAlert($vehicle, $field, $documentName, 'Vehicle', $today);
-                if ($alert) {
-                    $allAlerts->push($alert);
-                }
-            }
-        }
-
-        return $allAlerts->sortBy('days_until_expiry')->take(8);
+        return $alerts->sortBy('days_until_expiry')->take(8);
     }
 
-    private function createDocumentAlert($model, $field, $documentName, $category, $today)
+    private function collectDocumentAlerts($models, $fields, $category, &$alerts, $today)
     {
-        $expiryDate = $model->getAttribute($field);
+        foreach ($models as $model) {
+            foreach ($fields as $field => $name) {
+                $expiry = $model->$field;
+                if (!$expiry) continue;
 
-        if (!$expiryDate) {
-            return null;
+                $expiry = Carbon::parse($expiry);
+                $days = $today->diffInDays($expiry, false);
+                if ($days > 90) continue;
+
+                [$label, $class] = match (true) {
+                    $days < 0 => ['Expired', 'danger'],
+                    $days <= 30 => ['Critical', 'danger'],
+                    $days <= 60 => ['Warning', 'warning'],
+                    default => ['Notice', 'info'],
+                };
+
+                $alerts->push([
+                    'category' => $category,
+                    'name' => $category === 'Employee' ? $model->employee_name : ($category === 'Entity' ? $model->entity_name : $model->vehicle_name),
+                    'identifier' => $category === 'Employee' ? $model->staff_number : ($category === 'Vehicle' ? $model->vehicle_number : null),
+                    'document_name' => $name,
+                    'expiry_date' => $expiry,
+                    'days_until_expiry' => $days,
+                    'status_label' => $label,
+                    'status_class' => $class,
+                ]);
+            }
         }
-
-        $expiryDate = Carbon::parse($expiryDate);
-        $daysUntilExpiry = $today->diffInDays($expiryDate, false);
-
-        // Only show documents expiring within 90 days or already expired
-        if ($daysUntilExpiry > 90) {
-            return null;
-        }
-
-        // Determine status
-        if ($daysUntilExpiry < 0) {
-            $statusLabel = 'Expired';
-            $statusClass = 'danger';
-        } elseif ($daysUntilExpiry <= 30) {
-            $statusLabel = 'Critical';
-            $statusClass = 'danger';
-        } elseif ($daysUntilExpiry <= 60) {
-            $statusLabel = 'Warning';
-            $statusClass = 'warning';
-        } else {
-            $statusLabel = 'Notice';
-            $statusClass = 'info';
-        }
-
-        // Get name based on category
-        switch ($category) {
-            case 'Employee':
-                $name = $model->employee_name;
-                $identifier = $model->staff_number;
-                break;
-            case 'Entity':
-                $name = $model->entity_name;
-                $identifier = null;
-                break;
-            case 'Vehicle':
-                $name = $model->vehicle_name;
-                $identifier = $model->vehicle_number;
-                break;
-            default:
-                $name = 'Unknown';
-                $identifier = null;
-        }
-
-        return [
-            'category' => $category,
-            'name' => $name,
-            'identifier' => $identifier,
-            'document_name' => $documentName,
-            'expiry_date' => $expiryDate,
-            'days_until_expiry' => $daysUntilExpiry,
-            'status_label' => $statusLabel,
-            'status_class' => $statusClass,
-        ];
     }
 }

@@ -41,7 +41,7 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Employee Import/Export Routes (Must come BEFORE resource routes)
+    // Employee
     Route::prefix('employees')->name('employees.')->group(function () {
         Route::get('import', [EmployeeImportController::class, 'showImport'])->name('import');
         Route::post('preview', [EmployeeImportController::class, 'preview'])->name('preview');
