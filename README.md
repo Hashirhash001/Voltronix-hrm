@@ -30,3 +30,10 @@ An HRM web application built with Laravel to manage employee operations such as 
 ![Screen 1](./docs/screens/screen6.png)
 ![Screen 1](./docs/screens/screen7.png)
 ![Screen 1](./docs/screens/screen8.png)
+
+## Quick Setup (Local)
+- Clone the repo
+- Configure `.env`
+- Run migrations
+- Start the server
+
