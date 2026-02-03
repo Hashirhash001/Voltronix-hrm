@@ -217,6 +217,7 @@
     </div>
 
     <!-- OVERALL SUMMARY -->
+    @if($total_employees > 1)
     <div class="summary">
         <h3>Overall Summary Statistics</h3>
         <div class="summary-row">
@@ -230,6 +231,7 @@
             <div class="summary-row-item"><strong>Overtime</strong><span style="color:#e67e22;">{{ $summary['total_overtime_hours'] }}</span></div>
         </div>
     </div>
+    @endif
 
     <!-- EMPLOYEE-WISE SECTIONS -->
     @forelse($report_data as $empData)

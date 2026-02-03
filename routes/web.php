@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\EntityController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\EmployeeController;
@@ -81,6 +82,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports-export', [ReportController::class, 'export'])->name('reports.export');
     Route::get('/reports/employee/{employee}', [ReportController::class, 'employeeDetail'])->name('reports.employee-detail');
     Route::get('/reports/employee-export', [ReportController::class, 'employeeExport'])->name('reports.employee-export');
+
+    // Holiday Management
+    Route::prefix('holidays')->name('holidays.')->group(function () {
+        Route::get('/check-date', [HolidayController::class, 'checkDate'])->name('check-date');
+        Route::get('/range', [HolidayController::class, 'getHolidaysInRange'])->name('range');
+    });
+    Route::resource('holidays', HolidayController::class);
 
     // Entities Routes
     Route::resource('entities', EntityController::class);

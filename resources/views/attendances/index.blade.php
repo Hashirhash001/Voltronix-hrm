@@ -196,7 +196,6 @@
                         <option value="absent">Absent</option>
                         <option value="leave">Leave</option>
                         <option value="half_day">Half Day</option>
-                        <option value="holiday">Holiday</option>
                     </select>
                 </div>
 
@@ -299,7 +298,6 @@
                         <option value="absent">Absent</option>
                         <option value="half_day">Half Day</option>
                         <option value="leave">Leave</option>
-                        <option value="holiday">Holiday</option>
                     </select>
                 </div>
             </div>
@@ -403,7 +401,6 @@
                         <option value="absent">Absent</option>
                         <option value="half_day">Half Day</option>
                         <option value="leave">Leave</option>
-                        <option value="holiday">Holiday</option>
                     </select>
                 </div>
 
@@ -682,7 +679,7 @@
                 } else if (newStatus === 'half_day') {
                     checkInTime = '08:00';
                     checkOutTime = '12:00';
-                } else if (['absent', 'leave', 'holiday'].includes(newStatus)) {
+                } else if (['absent', 'leave'].includes(newStatus)) {
                     checkInTime = '';
                     checkOutTime = '';
                 }
@@ -1117,7 +1114,6 @@
                 absent: 'text-danger',
                 half_day: 'text-warning',
                 leave: 'text-info',
-                holiday: 'text-secondary'
             };
 
             const extractTime = (datetime) => {
@@ -1224,7 +1220,6 @@
                                 <option value="absent"   ${attendance.status === 'absent' ? 'selected' : ''}>Absent</option>
                                 <option value="half_day" ${attendance.status === 'half_day' ? 'selected' : ''}>Half Day</option>
                                 <option value="leave"    ${attendance.status === 'leave' ? 'selected' : ''}>Leave</option>
-                                <option value="holiday"  ${attendance.status === 'holiday' ? 'selected' : ''}>Holiday</option>
                             </select>
                         </td>
 
@@ -1462,7 +1457,6 @@
                 absent: 'text-danger',
                 half_day: 'text-warning',
                 leave: 'text-info',
-                holiday: 'text-secondary'
             };
 
             const extractTime = (datetime) => {
@@ -1976,7 +1970,7 @@
         function updateBulkTimeFields(status) {
             const timeFields = $('#bulk-time-fields');
 
-            if (['absent', 'leave', 'holiday'].includes(status)) {
+            if (['absent', 'leave'].includes(status)) {
                 timeFields.hide();
                 $('#bulk-check-in').val('');
                 $('#bulk-check-out').val('');
