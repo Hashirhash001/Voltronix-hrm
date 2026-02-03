@@ -888,8 +888,8 @@ class AttendanceController extends Controller
     private function exportToPdf($attendances, $startDate, $endDate)
     {
         try {
-            set_time_limit(600);
-            ini_set('memory_limit', '1024M');
+            set_time_limit(900); // ✅ Increased to 15 minutes
+            ini_set('memory_limit', '2048M'); // ✅ Increased to 2GB
 
             $attendancesByEmployee = $attendances->groupBy(function ($item) {
                 return $item->employee_id;
@@ -900,6 +900,17 @@ class AttendanceController extends Controller
 
             $employeeIds = $attendancesByEmployee->keys()->values();
 
+            // ✅ LOAD ALL HOLIDAYS ONCE (instead of querying per attendance)
+            $holidaysByDate = \App\Models\Holiday::active()
+                ->whereBetween('holiday_date', [$startDate, $endDate])
+                ->get()
+                ->groupBy('holiday_date');
+
+            // Create employee entity map for fast lookup
+            $employees = \App\Models\Employee::whereIn('id', $employeeIds)
+                ->get()
+                ->keyBy('id');
+
             $vacationsByEmployee = \App\Models\EmployeeVacation::query()
                 ->whereIn('employee_id', $employeeIds)
                 ->whereDate('start_date', '<=', $endDate)
@@ -907,36 +918,70 @@ class AttendanceController extends Controller
                 ->get()
                 ->groupBy('employee_id');
 
-            // ✅ RECALCULATE ALL ATTENDANCE RECORDS
+            // ✅ OPTIMIZED RECALCULATION WITH CACHED HOLIDAYS
             foreach ($attendances as $attendance) {
                 if ($attendance->check_in_time && $attendance->check_out_time) {
-                    $hours = $this->calculateAttendanceHours(
-                        $attendance,
-                        $attendance->check_in_time,
-                        $attendance->check_out_time
-                    );
+                    $attDate = $attendance->attendance_date instanceof Carbon
+                        ? $attendance->attendance_date->format('Y-m-d')
+                        : $attendance->attendance_date;
 
-                    // Update temporarily for export
-                    $attendance->total_hours = $hours['total_hours'];
-                    $attendance->regular_hours = $hours['regular_hours'];
-                    $attendance->overtime_hours = $hours['overtime_hours'];
-                    $attendance->overtime_before_midnight_hours = $hours['overtime_before_midnight'];
-                    $attendance->overtime_after_midnight_hours = $hours['overtime_after_midnight'];
+                    $employee = $employees->get($attendance->employee_id);
+
+                    // Check if date is a holiday (using cached data)
+                    $isHoliday = false;
+                    if ($holidaysByDate->has($attDate)) {
+                        $dayHolidays = $holidaysByDate->get($attDate);
+                        $isHoliday = $dayHolidays->contains(function($holiday) use ($employee) {
+                            return $holiday->entity_id === null ||
+                                ($employee && $holiday->entity_id === $employee->entity_id);
+                        });
+                    }
+
+                    // Check if Sunday
+                    $date = Carbon::parse($attDate);
+                    $isSunday = $date->dayOfWeek === Carbon::SUNDAY;
+
+                    // Calculate hours
+                    $checkIn = Carbon::parse($attendance->check_in_time);
+                    $checkOut = Carbon::parse($attendance->check_out_time);
+                    $totalMinutes = $checkIn->diffInMinutes($checkOut);
+                    $totalHours = round($totalMinutes / 60, 2);
+
+                    if ($isHoliday || $isSunday) {
+                        // All hours as overtime
+                        $attendance->total_hours = $totalHours;
+                        $attendance->regular_hours = 0;
+                        $attendance->overtime_hours = $totalHours;
+                    } else {
+                        // Normal calculation
+                        $regularHours = min($totalHours, 10);
+                        $overtimeHours = max(0, $totalHours - 10);
+
+                        $attendance->total_hours = $totalHours;
+                        $attendance->regular_hours = $regularHours;
+                        $attendance->overtime_hours = $overtimeHours;
+                    }
                 }
             }
 
             // ✅ NOW calculate stats from recalculated values
-            $extraDaysWorked = $attendances->filter(function ($att) {
+            $extraDaysWorked = $attendances->filter(function ($att) use ($holidaysByDate, $employees) {
                 $attDate = $att->attendance_date instanceof Carbon
-                    ? $att->attendance_date
-                    : Carbon::parse($att->attendance_date);
+                    ? $att->attendance_date->format('Y-m-d')
+                    : $att->attendance_date;
 
-                $isSunday = $attDate->dayOfWeek === Carbon::SUNDAY;
+                $isSunday = Carbon::parse($attDate)->dayOfWeek === Carbon::SUNDAY;
 
-                $isHoliday = $this->isHoliday(
-                    $attDate->format('Y-m-d'),
-                    $att->employee_id
-                );
+                // Check holidays using cached data
+                $isHoliday = false;
+                if ($holidaysByDate->has($attDate)) {
+                    $employee = $employees->get($att->employee_id);
+                    $dayHolidays = $holidaysByDate->get($attDate);
+                    $isHoliday = $dayHolidays->contains(function($holiday) use ($employee) {
+                        return $holiday->entity_id === null ||
+                            ($employee && $holiday->entity_id === $employee->entity_id);
+                    });
+                }
 
                 $hasWorked = in_array($att->status, ['present', 'half_day']);
                 return ($isSunday || $isHoliday) && $hasWorked;
@@ -957,17 +1002,22 @@ class AttendanceController extends Controller
                 $empHalfDay = $employeeAttendances->where('status', 'half_day')->count();
                 $empLeave = $employeeAttendances->where('status', 'leave')->count();
 
-                $empExtraDays = $employeeAttendances->filter(function ($att) {
+                $empExtraDays = $employeeAttendances->filter(function ($att) use ($holidaysByDate, $employees) {
                     $attDate = $att->attendance_date instanceof Carbon
-                        ? $att->attendance_date
-                        : Carbon::parse($att->attendance_date);
+                        ? $att->attendance_date->format('Y-m-d')
+                        : $att->attendance_date;
 
-                    $isSunday = $attDate->dayOfWeek === Carbon::SUNDAY;
+                    $isSunday = Carbon::parse($attDate)->dayOfWeek === Carbon::SUNDAY;
 
-                    $isHoliday = $this->isHoliday(
-                        $attDate->format('Y-m-d'),
-                        $att->employee_id
-                    );
+                    $isHoliday = false;
+                    if ($holidaysByDate->has($attDate)) {
+                        $empData = $employees->get($att->employee_id);
+                        $dayHolidays = $holidaysByDate->get($attDate);
+                        $isHoliday = $dayHolidays->contains(function($holiday) use ($empData) {
+                            return $holiday->entity_id === null ||
+                                ($empData && $holiday->entity_id === $empData->entity_id);
+                        });
+                    }
 
                     $hasWorked = in_array($att->status, ['present', 'half_day']);
                     return ($isSunday || $isHoliday) && $hasWorked;
@@ -975,7 +1025,7 @@ class AttendanceController extends Controller
 
                 $empExtraDaysCount = $empExtraDays->count();
                 $empTotalHours = $employeeAttendances->sum('total_hours');
-                $empOvertimeHours = $employeeAttendances->sum('overtime_hours'); // ✅ Now uses recalculated values
+                $empOvertimeHours = $employeeAttendances->sum('overtime_hours');
 
                 $vacationDays = [];
                 $vacations = $vacationsByEmployee[$employeeId] ?? collect();
@@ -1028,10 +1078,14 @@ class AttendanceController extends Controller
 
                         $isSunday = $attendanceDate->dayOfWeek === Carbon::SUNDAY;
 
-                        $isHoliday = $this->isHoliday(
-                            $attendanceDate->format('Y-m-d'),
-                            $attendance->employee_id
-                        );
+                        // Check holidays using cached data
+                        $isHoliday = false;
+                        if ($holidaysByDate->has($dateKey)) {
+                            $dayHolidays = $holidaysByDate->get($dateKey);
+                            $isHoliday = $dayHolidays->contains(function($holiday) use ($employee) {
+                                return $holiday->entity_id === null || $holiday->entity_id === $employee->entity_id;
+                            });
+                        }
 
                         $isExtraDay = ($isSunday || $isHoliday) && in_array($attendance->status, ['present', 'half_day']);
 
@@ -1117,6 +1171,7 @@ class AttendanceController extends Controller
                     'total_half_day'         => $attendances->where('status', 'half_day')->count(),
                     'total_leave'            => $attendances->where('status', 'leave')->count(),
                     'total_extra_days'       => $extraDaysWorked->count(),
+                    'total_holiday'          => 0,
                     'total_hours'            => $this->formatHoursMinutes($attendances->sum('total_hours')),
                     'total_regular_hours'    => $this->formatHoursMinutes($attendances->sum('regular_hours')),
                     'total_overtime_hours'   => $this->formatHoursMinutes($totalOvertimeHours),
