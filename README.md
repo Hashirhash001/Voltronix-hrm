@@ -13,6 +13,8 @@ An HRM web application built with Laravel to manage employee operations such as 
 - Employees (create, edit, view, import)
 - Attendance tracking (Bulk Generate)
 - Overtime management
+- Holidays management
+- vacation management
 - Document expiry tracking (alerts/records)
 - Entities management
 - Vehicles management
@@ -27,6 +29,7 @@ An HRM web application built with Laravel to manage employee operations such as 
 ![Screen 1](./docs/screens/screen3.png)
 ![Screen 1](./docs/screens/screen4.png)
 ![Screen 1](./docs/screens/screen5.png)
+![Screen 1](./docs/screens/screen9.png)
 ![Screen 1](./docs/screens/screen6.png)
 ![Screen 1](./docs/screens/screen7.png)
 ![Screen 1](./docs/screens/screen8.png)
