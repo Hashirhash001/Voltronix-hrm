@@ -293,9 +293,9 @@
                                     <span class="status-badge {{ $row['status_class'] }}">
                                         {{ $row['status_label'] }}
                                     </span>
-                                    @if($row['is_extra_day'])
+                                    {{-- @if($row['is_extra_day'])
                                         <span class="badge-info">EXTRA</span>
-                                    @endif
+                                    @endif --}}
                                     @if($row['is_vacation'])
                                         <span class="badge-vac">VACATION</span>
                                     @endif
@@ -320,7 +320,7 @@
     <!-- FOOTER -->
     <div class="footer">
         <p><strong>Generated on:</strong> {{ now()->format('d M Y h:i:s A') }} | <strong>© {{ date('Y') }} Voltronix HRM System</strong></p>
-        <p>Working Days: Mon-Sat (8:00 AM - 6:00 PM) | Extra Days: Sundays + Holidays worked | Overtime: After 6:00 PM + Extra Days</p>
+        <p>Working Days: Mon-Sat (8:00 AM - 6:00 PM) | Extra Days: Sundays + Holidays worked | Overtime: After 7:00 PM + Extra Days</p>
     </div>
 </body>
 </html>
