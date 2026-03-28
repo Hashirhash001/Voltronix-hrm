@@ -24,15 +24,15 @@ An HRM web application built with Laravel to manage employee operations such as 
 - Common layouts (header, sidebar, footer)
 
 ## Screenshots
-![Screen 1](./docs/screens/screen1.png)
-![Screen 1](./docs/screens/screen2.png)
-![Screen 1](./docs/screens/screen3.png)
-![Screen 1](./docs/screens/screen4.png)
-![Screen 1](./docs/screens/screen5.png)
-![Screen 1](./docs/screens/screen9.png)
-![Screen 1](./docs/screens/screen6.png)
-![Screen 1](./docs/screens/screen7.png)
-![Screen 1](./docs/screens/screen8.png)
+![Screen 1](./docs/screens/screen1.webp)
+![Screen 1](./docs/screens/screen2.webp)
+![Screen 1](./docs/screens/screen3.webp)
+![Screen 1](./docs/screens/screen4.webp)
+![Screen 1](./docs/screens/screen5.webp)
+![Screen 1](./docs/screens/screen9.webp)
+![Screen 1](./docs/screens/screen6.webp)
+![Screen 1](./docs/screens/screen7.webp)
+![Screen 1](./docs/screens/screen8.webp)
 
 ## Quick Setup (Local)
 - Clone the repo
